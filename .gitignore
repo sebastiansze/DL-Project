@@ -1,0 +1,20 @@
+## Virtual Environment
+/venv
+
+## PyCharm
+.idea/
+
+## Eclipse
+.cproject
+.project
+/Debug/
+.settings
+
+# Python (for lint)
+*.pyc
+
+# Temporary files
+*~
+
+## MacOS
+.DS_Store
