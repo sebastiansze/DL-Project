@@ -4,6 +4,7 @@ import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import matplotlib.patches as patches
 from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
@@ -173,14 +174,6 @@ class Map:
         else:
             return self._hist[0, agent]
 
-    def _draw_layer(self, ax, layer, color):
-        for x in range(self._size_x):
-            for y in range(self._size_y):
-                if layer[x, y]:
-                    rect = patches.Rectangle((y, self._size_x - x - 1), 1, 1, linewidth=0,
-                                             edgecolor='none', facecolor=color)
-                    ax.add_patch(rect)
-
     def _draw_label(self, ax, x, y, text, color):
         prop = FontProperties(family='monospace', weight='black')
         tp = TextPath((x, y), text, prop=prop, size=1)
@@ -194,29 +187,23 @@ class Map:
                                    facecolor='none')
         ax.add_patch(border)
 
-    def plot_layer(self, layer):
-        # Create figure and axes
-        fig, ax = plt.subplots(1, figsize=(5, 5))
-
-        # Draw layer
-        self._draw_layer(ax, layer, 'black')
+    def _draw_layer(self, ax, layer, color):
+        # Draw Layer
+        for x in range(self._size_x):
+            for y in range(self._size_y):
+                if layer[x, y]:
+                    rect = patches.Rectangle((y, self._size_x - x - 1), 1, 1, linewidth=0,
+                                             edgecolor='none', facecolor=color)
+                    ax.add_patch(rect)
 
         # Draw Border
         self._draw_border(ax, self._size_x, self._size_y)
 
-        plt.ylim(0, self._size_x)
-        plt.xlim(0, self._size_y)
+        ax.set_ylim(0, self._size_x)
+        ax.set_xlim(0, self._size_y)
         plt.axis('off')
-        plt.show()
 
-    def plot_overview(self):
-        """
-        Use Matplotlib to show an overview for humans
-        :return:
-        """
-        # Create figure and axes
-        fig, ax = plt.subplots(1, figsize=(5, 5))
-
+    def _draw_overview(self, ax):
         # Obstacles
         obstacles = self.get_filtered_map(layer='o')[0]
         self._draw_layer(ax, obstacles, 'black')
@@ -252,9 +239,48 @@ class Map:
         # Draw Border
         self._draw_border(ax, self._size_x, self._size_y)
 
-        plt.ylim(0, self._size_x)
-        plt.xlim(0, self._size_y)
-        plt.axis('off')
+        ax.set_ylim(0, self._size_x)
+        ax.set_xlim(0, self._size_y)
+        ax.axis('off')
+
+    def plot_layer(self, layer):
+        # Create figure and axes
+        fig, ax = plt.subplots(1, figsize=(5, 5))
+
+        # Draw Layer
+        self._draw_layer(ax, layer, 'black')
+
+        plt.show()
+
+    def plot_overview(self):
+        """
+        Use Matplotlib to show an overview for humans
+        :return:
+        """
+        # Create figure and axes
+        fig, ax = plt.subplots(1, figsize=(5, 5))
+
+        # Draw Overview
+        self._draw_overview(ax)
+
+        plt.show()
+
+    def plot_all(self):
+        fig = plt.figure()
+        outer = gridspec.GridSpec(2, 2, wspace=0.2, hspace=0.2)
+
+        # Plot Overview
+        ax = plt.Subplot(fig, outer[0])
+        self._draw_overview(ax)
+        fig.add_subplot(ax)
+
+        # Plot Layers
+        nr_agents = self._agent_count
+        nr_layers = 1  # TODO
+        inner = gridspec.GridSpecFromSubplotSpec(nr_agents, nr_layers, subplot_spec=outer[1], wspace=0.1, hspace=0.1)
+        # TODO: for agents...
+        # TODO:     for layers...
+
         plt.show()
 
 
@@ -269,7 +295,7 @@ if __name__ == '__main__':
 
     arena.set_aim_positions([[0, 5],
                              [1, 5],
-                             [2, 5]])
+                             [2, 5    ]])
     arena.set_current_positions([[0, 0],
                                  [1, 0],
                                  [2, 0]])
@@ -283,6 +309,6 @@ if __name__ == '__main__':
     print(arena.get_map_for_agent(0))
     # print(game_map.get_filtered_map(agent='2', layer='a'))
 
-    arena.plot_overview()
-    for layer in arena.get_map_for_agent(0):
-        arena.plot_layer(layer)
+    # arena.plot_overview()
+    # arena.plot_layer(arena.get_map_for_agent(0)[0])
+    arena.plot_all()
