@@ -267,7 +267,7 @@ class Map:
 
     def plot_all(self):
         fig = plt.figure()
-        outer = gridspec.GridSpec(2, 2, wspace=0.2, hspace=0.2)
+        outer = gridspec.GridSpec(1, 2, wspace=0.2, hspace=0.2)
 
         # Plot Overview
         ax = plt.Subplot(fig, outer[0])
@@ -276,10 +276,20 @@ class Map:
 
         # Plot Layers
         nr_agents = self._agent_count
-        nr_layers = 1  # TODO
+        nr_layers = 6  # TODO
         inner = gridspec.GridSpecFromSubplotSpec(nr_agents, nr_layers, subplot_spec=outer[1], wspace=0.1, hspace=0.1)
-        # TODO: for agents...
-        # TODO:     for layers...
+        for i_agent in range(nr_agents):
+            layers = arena.get_map_for_agent(i_agent)
+            for i_layer, layer in enumerate(layers):
+                i_grid = i_agent * nr_layers + i_layer
+                print(i_agent)
+                print(i_layer)
+                print(i_grid)
+                print()
+                ax = plt.Subplot(fig, inner[i_grid])
+                self._draw_layer(ax, layer, 'black')
+                fig.add_subplot(ax)
+
 
         plt.show()
 
