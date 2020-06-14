@@ -187,6 +187,12 @@ class Map:
                                    facecolor='none')
         ax.add_patch(border)
 
+    def _get_draw_color(self, agent_index, next_step=False):
+        hue = 1.0 / self._agent_count * agent_index
+        saturation = 1.0 if not next_step else 0.1
+        value = 0.7 if not next_step else 0.9
+        return colorsys.hsv_to_rgb(hue, saturation, value)
+
     def _draw_layer(self, ax, layer, color):
         # Draw Layer
         for x in range(self._size_x):
@@ -209,13 +215,12 @@ class Map:
         self._draw_layer(ax, obstacles, 'black')
 
         # Agents fields
-        for agent in range(self._agent_count):
-            start_pos = self.get_start_positions(agent=agent)
-            a_c_n_pos = self._map[self._layer_filter(agent=agent)]
+        for i_agent in range(self._agent_count):
+            start_pos = self.get_start_positions(agent=i_agent)
+            a_c_n_pos = self._map[self._layer_filter(agent=i_agent)]
 
-            hue = 1.0 / self._agent_count * agent
-            color = colorsys.hsv_to_rgb(hue, 1.0, 0.7)
-            color_next = colorsys.hsv_to_rgb(hue, 0.1, 0.9)
+            color = self._get_draw_color(i_agent, next_step=False)
+            color_next = self._get_draw_color(i_agent, next_step=True)
 
             # Plot next position
             if self._next_step:
@@ -276,20 +281,16 @@ class Map:
 
         # Plot Layers
         nr_agents = self._agent_count
-        nr_layers = 6  # TODO
+        nr_layers = 6 if self._next_step else 5
         inner = gridspec.GridSpecFromSubplotSpec(nr_agents, nr_layers, subplot_spec=outer[1], wspace=0.1, hspace=0.1)
         for i_agent in range(nr_agents):
             layers = arena.get_map_for_agent(i_agent)
             for i_layer, layer in enumerate(layers):
                 i_grid = i_agent * nr_layers + i_layer
-                print(i_agent)
-                print(i_layer)
-                print(i_grid)
-                print()
                 ax = plt.Subplot(fig, inner[i_grid])
-                self._draw_layer(ax, layer, 'black')
+                color = self._get_draw_color(i_agent)
+                self._draw_layer(ax, layer, color)
                 fig.add_subplot(ax)
-
 
         plt.show()
 
