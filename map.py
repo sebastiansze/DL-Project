@@ -3,6 +3,7 @@ import colorsys
 import warnings
 
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as patches
@@ -155,12 +156,6 @@ class Map:
 
         return agent_map
 
-    def move_agents(self, offset_x, offset_y):
-        old_positions = np.where(self.get_filtered_map(layer='c'))
-        print(old_positions)
-        # TODO: implement
-        pass
-
     def get_start_positions(self, agent=None):
         """
         Returns array with coordinates of first position a given agent or all agents
@@ -174,7 +169,22 @@ class Map:
         else:
             return self._hist[0, agent]
 
-    def _draw_label(self, ax, x, y, text, color):
+    def move_agents(self, command):
+        """
+        Checks if desired commands of agents lead to accidents and updates the map accordingly for agents without an accident.
+        :param command: (boolean) numpy array with shape (agent_count, 5) which contains one hot vectors for all agents.
+        One hot vectors contain: [stay, up, right, down, left]
+        :return: boolean array with shape (agent_count, 1) with True if the command is valid for this agent and
+        False if there was an accident.
+        """
+
+        old_positions = np.where(self.get_filtered_map(layer='c'))
+        print(old_positions)
+        # forbidden_positions =
+        # TODO: implement
+        pass
+
+    def _plot_label(self, ax, x, y, text, color):
         prop = FontProperties(family='monospace', weight='black')
         tp = TextPath((x, y), text, prop=prop, size=1)
         polygon = tp.to_polygons()
@@ -182,19 +192,19 @@ class Map:
             patch = patches.Polygon(a, facecolor=color, edgecolor='black', linewidth=1)
             ax.add_patch(patch)
 
-    def _draw_border(self, ax, size_x, size_y):
+    def _plot_border(self, ax, size_x, size_y):
         border = patches.Rectangle((0, 0), size_y, size_x, linewidth=5, edgecolor='black',
                                    facecolor='none')
         ax.add_patch(border)
 
-    def _get_draw_color(self, agent_index, next_step=False):
+    def _get_plot_color(self, agent_index, next_step=False):
         hue = 1.0 / self._agent_count * agent_index
         saturation = 1.0 if not next_step else 0.1
         value = 0.7 if not next_step else 0.9
         return colorsys.hsv_to_rgb(hue, saturation, value)
 
-    def _draw_layer(self, ax, layer, color):
-        # Draw Layer
+    def _plot_layer(self, ax, layer, color):
+        # Plot Layer
         for x in range(self._size_x):
             for y in range(self._size_y):
                 if layer[x, y]:
@@ -202,111 +212,146 @@ class Map:
                                              edgecolor='none', facecolor=color)
                     ax.add_patch(rect)
 
-        # Draw Border
-        self._draw_border(ax, self._size_x, self._size_y)
+        # Plot Border
+        self._plot_border(ax, self._size_x, self._size_y)
 
         ax.set_ylim(0, self._size_x)
         ax.set_xlim(0, self._size_y)
-        plt.axis('off')
+        ax.set_aspect('equal')
+        ax.set_xticks([])
+        ax.set_yticks([])
 
-    def _draw_overview(self, ax):
+    def _plot_overview(self, ax):
         # Obstacles
         obstacles = self.get_filtered_map(layer='o')[0]
-        self._draw_layer(ax, obstacles, 'black')
+        self._plot_layer(ax, obstacles, 'black')
 
         # Agents fields
         for i_agent in range(self._agent_count):
             start_pos = self.get_start_positions(agent=i_agent)
             a_c_n_pos = self._map[self._layer_filter(agent=i_agent)]
 
-            color = self._get_draw_color(i_agent, next_step=False)
-            color_next = self._get_draw_color(i_agent, next_step=True)
+            color = self._get_plot_color(i_agent, next_step=False)
+            color_next = self._get_plot_color(i_agent, next_step=True)
 
             # Plot next position
             if self._next_step:
-                self._draw_layer(ax, a_c_n_pos[2], color_next)
+                self._plot_layer(ax, a_c_n_pos[2], color_next)
 
             # Plot current position
-            self._draw_layer(ax, a_c_n_pos[1], color)
+            self._plot_layer(ax, a_c_n_pos[1], color)
 
             # Plot start position
             if start_pos is not None:
                 x = start_pos[1] + 0.2
-                y = self._size_y - start_pos[0] - 1 + 0.15
-                self._draw_label(ax, x, y, "S", color)
+                y = self._size_x - start_pos[0] - 1 + 0.15
+                self._plot_label(ax, x, y, "S", color)
 
             # Plot aim position
             for y, x in zip(*np.where(a_c_n_pos[0])):
                 x = x + 0.2
-                y = self._size_y - y - 1 + 0.15
-                self._draw_label(ax, x, y, "E", color)
+                y = self._size_x - y - 1 + 0.15
+                self._plot_label(ax, x, y, "E", color)
 
-        # Draw Border
-        self._draw_border(ax, self._size_x, self._size_y)
+        # Plot Border
+        self._plot_border(ax, self._size_x, self._size_y)
 
         ax.set_ylim(0, self._size_x)
         ax.set_xlim(0, self._size_y)
-        ax.axis('off')
+        ax.set_aspect('equal')
+        ax.set_xticks([])
+        ax.set_yticks([])
 
     def plot_layer(self, layer):
-        # Create figure and axes
+        """
+        Shows a single layer
+        :param layer: number of agent
+        :return:
+        """
+        # Disable tools and create figure and axes
+        mpl.rcParams['toolbar'] = 'None'
         fig, ax = plt.subplots(1, figsize=(5, 5))
 
-        # Draw Layer
-        self._draw_layer(ax, layer, 'black')
+        # Plot Layer
+        self._plot_layer(ax, layer, 'black')
 
         plt.show()
 
     def plot_overview(self):
         """
-        Use Matplotlib to show an overview for humans
+        Shows an overview for humans
         :return:
         """
-        # Create figure and axes
+        # Disable tools and create figure and axes
+        mpl.rcParams['toolbar'] = 'None'
         fig, ax = plt.subplots(1, figsize=(5, 5))
 
-        # Draw Overview
-        self._draw_overview(ax)
+        # Plot overview
+        self._plot_overview(ax)
 
         plt.show()
 
     def plot_all(self):
-        fig = plt.figure()
-        outer = gridspec.GridSpec(1, 2, wspace=0.2, hspace=0.2)
+        """
+        Shows an overview and all layers for each single agent in one plot
+        :return:
+        """
+        # Disable tools and create figure, axes and outer grid
+        mpl.rcParams['toolbar'] = 'None'
+        fig = plt.figure(figsize=(17, 10))
+        outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
+        outer.update(left=0.01, right=0.99, top=0.99, bottom=0.01)
 
-        # Plot Overview
+        # Plot overview on the left side
         ax = plt.Subplot(fig, outer[0])
-        self._draw_overview(ax)
+        self._plot_overview(ax)
         fig.add_subplot(ax)
 
         # Plot Layers
-        nr_agents = self._agent_count
-        nr_layers = 6 if self._next_step else 5
-        inner = gridspec.GridSpecFromSubplotSpec(nr_agents, nr_layers, subplot_spec=outer[1], wspace=0.1, hspace=0.1)
-        for i_agent in range(nr_agents):
+        if self._next_step:
+            nr_layers = 6
+            layer_names = ['Obstacles', 'Aim', 'Agent\'s\nCurrent Pos.', 'Agent\'s\nNext Pos.',
+                           'Others\nCurrent Pos.', 'Others\nNext Pos.']
+        else:
+            nr_layers = 4
+            layer_names = ['Obstacles', 'Aim', 'Agent\'s Pos.', 'Others Pos.']
+        agents_grid = gridspec.GridSpecFromSubplotSpec(self._agent_count, nr_layers, subplot_spec=outer[1],
+                                                       wspace=0.1, hspace=0.1)
+        for i_agent in range(self._agent_count):
             layers = arena.get_map_for_agent(i_agent)
             for i_layer, layer in enumerate(layers):
                 i_grid = i_agent * nr_layers + i_layer
-                ax = plt.Subplot(fig, inner[i_grid])
-                color = self._get_draw_color(i_agent)
-                self._draw_layer(ax, layer, color)
+                ax = plt.Subplot(fig, agents_grid[i_grid])
+                color = self._get_plot_color(i_agent)
+                self._plot_layer(ax, layer, color)
+
+                # layer label
+                if ax.is_first_row():
+                    ax.set_xlabel(layer_names[i_layer], fontsize=15)
+                    ax.xaxis.set_label_position('top')
+
+                # agent label
+                if ax.is_first_col():
+                    ax.set_ylabel('Agent {}'.format(i_agent), fontsize=15)
+
                 fig.add_subplot(ax)
 
+        plt.subplots_adjust(wspace=0, hspace=0)
         plt.show()
 
 
 if __name__ == '__main__':
-    o = np.array([[0, 0, 0, 0, 0, 0],
-                  [0, 0, 0, 0, 0, 0],
-                  [0, 0, 1, 1, 0, 0],
-                  [0, 0, 1, 0, 0, 0],
-                  [0, 0, 0, 0, 0, 0],
-                  [0, 0, 0, 0, 0, 0]])
-    arena = Map(6, 6, 3, o, next_step=True)
+    o = np.array([[0, 0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 1, 1, 0, 0, 0, 0],
+                  [0, 0, 1, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0, 0, 0, 0]])
+    arena = Map(o.shape[0], o.shape[1], 3, o, next_step=True)
 
-    arena.set_aim_positions([[0, 5],
-                             [1, 5],
-                             [2, 5    ]])
+    arena.set_aim_positions([[0, o.shape[1]-1],
+                             [1, o.shape[1]-1],
+                             [2, o.shape[1]-1]])
     arena.set_current_positions([[0, 0],
                                  [1, 0],
                                  [2, 0]])
@@ -315,9 +360,10 @@ if __name__ == '__main__':
                                  [2, 1]])
     arena.set_next_positions([[0, 2],
                               [1, 2],
-                              [2, 2]])
+                              [3, 1]])
     print(arena.get_map())
     print(arena.get_map_for_agent(0))
+
     # print(game_map.get_filtered_map(agent='2', layer='a'))
 
     # arena.plot_overview()
