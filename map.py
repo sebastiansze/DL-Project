@@ -234,10 +234,14 @@ class Map:
                                ~desired_pos_maps], axis=0)
 
         # Check whether an agent crash into an obstacle or other agent
-        print('Danger Zones:')
-        self.print_layers(danger_zones)
-        # TODO: continue...
-        # accident = np.any([accident, ... ], axis=0)
+        # print('Danger Zones:')
+        # self.print_layers(danger_zones)
+        accident = np.any([accident, danger_zones[np.arange(self._agent_count),
+                                                  desired_pos_coord[:, 0],
+                                                  desired_pos_coord[:, 1]]], axis=0)
+
+        # If there is an accident for this agent the position stays the old (and he dies there)
+        desired_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, desired_pos_coord)
 
         self.set_positions(layer='c', positions=desired_pos_coord)  # TODO: Next Step
         return accident

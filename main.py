@@ -80,11 +80,10 @@ if __name__ == '__main__':
 
             # Apply network output
             new_accident = arena.move_agents(commands)
-            print(new_accident)
             accident = np.any([new_accident, accident], axis=0)
             print(accident)
 
             # Save image
-            # arena.plot_all(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
+            arena.plot_all(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
 
             # TODO: Do penalty stuff here...
