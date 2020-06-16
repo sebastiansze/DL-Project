@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from datetime import datetime
 
 from map import Map
 
@@ -10,7 +11,10 @@ if __name__ == '__main__':
     # for i_game in range(15):
     while True:
         i_game += 1
+        game_dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+
         print('Game Nr. {}'.format(i_game))
+        print('started at {}'.format(game_dt))
 
         # Define number of agents and map size randomly
         agent_count = np.random.randint(1, 5)
@@ -48,7 +52,7 @@ if __name__ == '__main__':
         arena.set_current_positions(all_border_cells[agent_count:agent_count * 2])
 
         # Check if directory for images exists
-        img_game_dir = os.path.join('img', 'game_{}'.format(i_game))
+        img_game_dir = os.path.join('img', '{}_game_{}'.format(game_dt, i_game))
         if not os.path.exists(img_game_dir):
             os.makedirs(img_game_dir)
 
@@ -64,19 +68,23 @@ if __name__ == '__main__':
             # Apply network for each agent independently
             commands = []
             for agent in range(agent_count):
-                x = arena.get_map_for_agent(agent)
+                if accident[agent]:
+                    commands.append([1, 0, 0, 0, 0])
+                else:
+                    x = arena.get_map_for_agent(agent)
 
-                # TODO: Do RL stuff here and return a one hot vector (stay, up, left, down, right):
-                y = [1, 0, 0, 0, 0]
-                np.random.shuffle(y)
-                commands.append(y)
+                    # TODO: Do RL stuff here and return a one hot vector (stay, up, left, down, right):
+                    y = [1, 0, 0, 0, 0]
+                    np.random.shuffle(y)
+                    commands.append(y)
 
             # Apply network output
-            commands = np.array(commands)
-            print(commands)
-            accident = arena.move_agents(commands)
+            new_accident = arena.move_agents(commands)
+            print(new_accident)
+            accident = np.any([new_accident, accident], axis=0)
+            print(accident)
 
             # Save image
-            arena.plot_all(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
+            # arena.plot_all(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
 
             # TODO: Do penalty stuff here...
