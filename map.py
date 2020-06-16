@@ -196,6 +196,10 @@ class Map:
         old_pos_maps = self.get_filtered_map(layer='c')
         old_pos_coord = self.get_positions(layer='c')
 
+        print('Old coordinates:')
+        print(old_pos_coord)
+        print()
+
         # Calculate desired positions
         offset_kernel = [[0, 0],
                          [-1, 0],
@@ -204,11 +208,13 @@ class Map:
                          [0, -1]]
         offset = np.matmul(commands, offset_kernel)
         desired_pos_coord = old_pos_coord + offset
+        print('Desired coordinates:')
         print(desired_pos_coord)
+        print()
 
         # Check whether an agent has already left the map
         accident = np.any(np.concatenate([desired_pos_coord < 0,
-                                          desired_pos_coord > [self._size_x, self._size_y]], axis=1), axis=1)
+                                          desired_pos_coord >= [self._size_x, self._size_y]], axis=1), axis=1)
 
         # If there is an accident for this agent the position stays the old (and he dies there)
         desired_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, desired_pos_coord)
@@ -335,9 +341,10 @@ class Map:
         ax.set_xticks([])
         ax.set_yticks([])
 
-    def plot_layer(self, layer):
+    def plot_layer(self, layer, block=True):
         """
         Shows a single layer
+        :param block:
         :param layer: number of agent
         :return:
         """
@@ -348,9 +355,9 @@ class Map:
         # Plot Layer
         self._plot_layer(ax, layer, 'black')
 
-        plt.show()
+        plt.show(block=block)
 
-    def plot_overview(self):
+    def plot_overview(self, block=True):
         """
         Shows an overview for humans
         :return:
@@ -362,9 +369,9 @@ class Map:
         # Plot overview
         self._plot_overview(ax)
 
-        plt.show()
+        plt.show(block=block)
 
-    def plot_all(self, block=True):
+    def plot_all(self, block=True, save_as=None):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
@@ -411,7 +418,12 @@ class Map:
                 fig.add_subplot(ax)
 
         plt.subplots_adjust(wspace=0, hspace=0)
-        plt.show(block=block)
+
+        if save_as:
+            fig.savefig(save_as)
+            plt.close(fig)
+        else:
+            plt.show(block=block)
 
 
 if __name__ == '__main__':
