@@ -33,7 +33,7 @@ class Map:
             if next_step:
                 unstacked_layers.append(np.array([p + 1, 'n'], dtype=np.dtype('U1')))  # next position
             self._layers = np.vstack(unstacked_layers)  # shape: (obstacle+agent_count*(aim+current[+ next]), 2)
-                                                        # -> 2 for two filters: agents and layers
+            # -> 2 for two filters: agents and layers
 
         # Create map skeleton
         nr_layers = 1 + agent_count * (3 if next_step else 2)  # obstacle + agent_count * (aim + current [+ next])
@@ -51,11 +51,20 @@ class Map:
         # History
         self._hist = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
 
+        # Color
+        self._color_hue_offset = np.random.uniform()
+
     def _layer_filter(self, agent=None, layer=None):
         agent = None if agent is None else str(int(agent) + 1)  # in self._layers agent number starts at one
         agent_filter = [True for _ in range(self._layers.shape[0])] if agent is None else self._layers[:, 0] == agent
         layer_filter = [True for _ in range(self._layers.shape[0])] if layer is None else self._layers[:, 1] == layer
         return np.array(agent_filter) & np.array(layer_filter)
+
+    def _generate_layers_from_positions(self, positions):
+        positions = np.concatenate([np.expand_dims(np.arange(self._agent_count), 1), positions], 1)
+        layers = np.zeros((self._agent_count, self._size_x, self._size_y), dtype=bool)
+        layers[positions[:, 0], positions[:, 1], positions[:, 2]] = [True for _ in range(self._agent_count)]
+        return layers
 
     def _add_hist(self, positions):
         self._hist = np.concatenate([self._hist, positions], 0)
@@ -89,10 +98,7 @@ class Map:
         if layer == 'c':
             self._hist = np.concatenate([self._hist, np.expand_dims(positions, 0)])
 
-        positions = np.concatenate([np.expand_dims(np.arange(self._agent_count), 1), positions], 1)
-        ary = np.zeros((self._agent_count, self._size_x, self._size_y))
-        ary[positions[:, 0], positions[:, 1], positions[:, 2]] = [True for _ in range(self._agent_count)]
-        self._map[self._layer_filter(layer=layer)] = ary
+        self._map[self._layer_filter(layer=layer)] = self._generate_layers_from_positions(positions)
 
     def set_aim_positions(self, positions):
         """
@@ -156,6 +162,15 @@ class Map:
 
         return agent_map
 
+    def get_positions(self, agent=None, layer=None):
+        """
+        Returns positions as coordinates of wanted agents and layers
+        :param agent:
+        :param layer:
+        :return:
+        """
+        return np.argwhere(self.get_filtered_map(agent=agent, layer=layer))[:, 1:3]
+
     def get_start_positions(self, agent=None):
         """
         Returns array with coordinates of first position a given agent or all agents
@@ -169,20 +184,78 @@ class Map:
         else:
             return self._hist[0, agent]
 
-    def move_agents(self, command):
+    def move_agents(self, commands):
         """
         Checks if desired commands of agents lead to accidents and updates the map accordingly for agents without an accident.
-        :param command: (boolean) numpy array with shape (agent_count, 5) which contains one hot vectors for all agents.
+        :param commands: (boolean) numpy array with shape (agent_count, 5) which contains one hot vectors for all agents.
         One hot vectors contain: [stay, up, right, down, left]
         :return: boolean array with shape (agent_count, 1) with True if the command is valid for this agent and
         False if there was an accident.
         """
 
-        old_positions = np.where(self.get_filtered_map(layer='c'))
-        print(old_positions)
-        # forbidden_positions =
-        # TODO: implement
-        pass
+        old_pos_maps = self.get_filtered_map(layer='c')
+        old_pos_coord = self.get_positions(layer='c')
+
+        # Calculate desired positions
+        offset_kernel = [[0, 0],
+                         [-1, 0],
+                         [0, 1],
+                         [1, 0],
+                         [0, -1]]
+        offset = np.matmul(commands, offset_kernel)
+        desired_pos_coord = old_pos_coord + offset
+        print(desired_pos_coord)
+
+        # Check whether an agent has already left the map
+        accident = np.any(np.concatenate([desired_pos_coord < 0,
+                                          desired_pos_coord > [self._size_x, self._size_y]], axis=1), axis=1)
+
+        # If there is an accident for this agent the position stays the old (and he dies there)
+        desired_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, desired_pos_coord)
+
+        # Generate maps for all agents with their desired positions
+        desired_pos_maps = self._generate_layers_from_positions(desired_pos_coord)
+
+        # Create array contains all positions which creates an accident in general -> shape: (size_x, size_y)
+        # This contains: obstacles, old positions, desired positions
+        danger_zones = np.any([np.squeeze(self.get_filtered_map(layer='o')),
+                               np.any(old_pos_maps, axis=0),
+                               np.any(desired_pos_maps, axis=0)], axis=0)
+
+        # Make danger zones more specific for all single agent -> shape (agent_count, size_x, size_y)
+        danger_zones = np.all([np.tile(danger_zones, (self._agent_count, 1, 1)),
+                               ~old_pos_maps,
+                               ~desired_pos_maps], axis=0)
+
+        # Check whether an agent crash into an obstacle or other agent
+        print('Danger Zones:')
+        self.print_layers(danger_zones)
+        # TODO: continue...
+        # accident = np.any([accident, ... ], axis=0)
+
+        self.set_positions(layer='c', positions=desired_pos_coord)  # TODO: Next Step
+        return accident
+
+    def print_layers(self, layers, fill='\u2590\u2588\u258C'):
+        if layers.ndim == 2:
+            layers = np.expand_dims(layers, 0)
+
+        if layers.ndim != 3:
+            raise ValueError('Invalid number of dimensions')
+
+        print('\u250f' + '\u2501' * (layers.shape[2] * 3) + '\u2513')
+        for i, layer in enumerate(layers):
+            if i > 0:
+                print('\u2523' + '\u2501' * (layers.shape[2] * 3) + '\u252B')
+            for row in layer:
+                print('\u2503', end='')
+                for cell in row:
+                    if cell:
+                        print(fill, end='')
+                    else:
+                        print('   ', end='')
+                print('\u2503')
+        print('\u2517' + '\u2501' * (layers.shape[2] * 3) + '\u251B')
 
     def _plot_label(self, ax, x, y, text, color):
         prop = FontProperties(family='monospace', weight='black')
@@ -198,7 +271,7 @@ class Map:
         ax.add_patch(border)
 
     def _get_plot_color(self, agent_index, next_step=False):
-        hue = 1.0 / self._agent_count * agent_index
+        hue = 1.0 / self._agent_count * agent_index + self._color_hue_offset
         saturation = 1.0 if not next_step else 0.1
         value = 0.7 if not next_step else 0.9
         return colorsys.hsv_to_rgb(hue, saturation, value)
@@ -248,7 +321,7 @@ class Map:
                 self._plot_label(ax, x, y, "S", color)
 
             # Plot aim position
-            for y, x in zip(*np.where(a_c_n_pos[0])):
+            for y, x in self.get_positions(agent=i_agent, layer='a'):
                 x = x + 0.2
                 y = self._size_x - y - 1 + 0.15
                 self._plot_label(ax, x, y, "E", color)
@@ -291,7 +364,7 @@ class Map:
 
         plt.show()
 
-    def plot_all(self):
+    def plot_all(self, block=True):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
@@ -300,11 +373,12 @@ class Map:
         mpl.rcParams['toolbar'] = 'None'
         fig = plt.figure(figsize=(17, 10))
         outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
-        outer.update(left=0.01, right=0.99, top=0.99, bottom=0.01)
+        outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
 
         # Plot overview on the left side
         ax = plt.Subplot(fig, outer[0])
         self._plot_overview(ax)
+        ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
 
         # Plot Layers
@@ -318,7 +392,7 @@ class Map:
         agents_grid = gridspec.GridSpecFromSubplotSpec(self._agent_count, nr_layers, subplot_spec=outer[1],
                                                        wspace=0.1, hspace=0.1)
         for i_agent in range(self._agent_count):
-            layers = arena.get_map_for_agent(i_agent)
+            layers = self.get_map_for_agent(i_agent)
             for i_layer, layer in enumerate(layers):
                 i_grid = i_agent * nr_layers + i_layer
                 ax = plt.Subplot(fig, agents_grid[i_grid])
@@ -337,7 +411,7 @@ class Map:
                 fig.add_subplot(ax)
 
         plt.subplots_adjust(wspace=0, hspace=0)
-        plt.show()
+        plt.show(block=block)
 
 
 if __name__ == '__main__':
@@ -347,23 +421,27 @@ if __name__ == '__main__':
                   [0, 0, 1, 0, 0, 0, 0, 0],
                   [0, 0, 0, 0, 0, 0, 0, 0],
                   [0, 0, 0, 0, 0, 0, 0, 0]])
-    arena = Map(o.shape[0], o.shape[1], 3, o, next_step=True)
+    arena = Map(o.shape[0], o.shape[1], 4, o, next_step=False)
 
-    arena.set_aim_positions([[0, o.shape[1]-1],
-                             [1, o.shape[1]-1],
-                             [2, o.shape[1]-1]])
+    arena.set_aim_positions([[0, o.shape[1] - 1],
+                             [1, o.shape[1] - 1],
+                             [2, o.shape[1] - 1],
+                             [o.shape[0] - 1, 0]])
     arena.set_current_positions([[0, 0],
                                  [1, 0],
-                                 [2, 0]])
-    arena.set_current_positions([[0, 1],
-                                 [1, 1],
-                                 [2, 1]])
-    arena.set_next_positions([[0, 2],
-                              [1, 2],
-                              [3, 1]])
-    print(arena.get_map())
-    print(arena.get_map_for_agent(0))
-
+                                 [2, 0],
+                                 [0, 4]])
+    accident = arena.move_agents([[0, 0, 1, 0, 0],
+                                  [1, 0, 0, 0, 0],
+                                  [0, 0, 0, 0, 1],
+                                  [0, 0, 0, 1, 0]])
+    print(accident)
+    # arena.set_next_positions([[0, 2],
+    #                           [1, 2],
+    #                           [3, 1],
+    #                           [2, 4]])
+    # print(arena.get_map())
+    # print(arena.get_map_for_agent(0))
     # print(game_map.get_filtered_map(agent='2', layer='a'))
 
     # arena.plot_overview()
