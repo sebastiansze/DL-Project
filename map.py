@@ -99,7 +99,7 @@ class Map:
 
         # Add new positions to history
         if layer == 'c':
-            self._hist = np.concatenate([self._hist, np.expand_dims(positions, 0)])
+            self._add_hist(np.expand_dims(positions, 0))
 
         self._map[self._layer_filter(layer=layer)] = self._generate_layers_from_positions(positions)
 
@@ -328,7 +328,7 @@ class Map:
         ax.set_xticks([])
         ax.set_yticks([])
 
-    def _plot_overview(self, ax, plot_agent_status=True):
+    def _plot_overview(self, ax, plot_agent_status=True, plot_path=True):
         # Obstacles
         obstacles = self.get_filtered_map(layer='o')[0]
         self._plot_layer(ax, obstacles, 'black')
@@ -347,6 +347,13 @@ class Map:
 
             # Plot current position
             self._plot_layer(ax, a_c_n_map[1], color)
+
+            # Plot path
+            if plot_path:
+                offset = (1/(self._agent_count + 1) * (i_agent + 1) * 0.5) - 0.25
+                x = self._hist[:, i_agent, 1] + 0.5 + offset
+                y = self._size_x - self._hist[:, i_agent, 0] - 0.5 + offset
+                ax.plot(x, y, '-', color=color, zorder=0)
 
             # Plot start position
             if start_pos is not None:

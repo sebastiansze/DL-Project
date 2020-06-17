@@ -52,19 +52,19 @@ if __name__ == '__main__':
         arena.set_current_positions(all_border_cells[agent_count:agent_count * 2])
 
         # Check if directory for images exists
-        img_game_dir = os.path.join('img', '{}_game_{}'.format(game_dt, i_game))
-        if not os.path.exists(img_game_dir):
-            os.makedirs(img_game_dir)
+        # img_game_dir = os.path.join('img', '{}_game_{}'.format(game_dt, i_game))
+        # if not os.path.exists(img_game_dir):
+        #     os.makedirs(img_game_dir)
 
         # Save image for t = 0
-        arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(0)))
+        # arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(0)))
 
         # Start playing
         running = np.ones(agent_count, dtype=bool)
         time_step = 0
         while np.any(running):
             time_step += 1
-            print('  - time step: {}'.format(time_step))
+            # print('  - time step: {}'.format(time_step))
 
             # Apply network for each agent independently
             commands = []
@@ -83,9 +83,14 @@ if __name__ == '__main__':
 
             # Check Agent status
             running = np.invert(np.isin(arena.get_agent_status(), ['a', 's', '3']))
-            print('    - Agent Status: {}'.format(arena.get_agent_status()))
+            # print('    - Agent Status: {}'.format(arena.get_agent_status()))
 
             # Save image
-            arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
+            # arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
 
             # TODO: Do penalty stuff here...
+
+        if time_step > 99 and np.any(arena.get_agent_status() == 'a'):
+            arena.plot_overview(save_as=os.path.join('img', '{}_time_{}.png'.format(game_dt, time_step)))
+        print('Time Steps: {}'.format(time_step))
+        print()
