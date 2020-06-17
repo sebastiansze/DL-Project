@@ -51,6 +51,9 @@ class Map:
         # History
         self._hist = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
 
+        # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s) 'third-party fault accident' (3)
+        self._agent_status = np.zeros(agent_count, dtype=np.dtype('U1'))
+
         # Color
         self._color_hue_offset = np.random.uniform()
 
@@ -82,9 +85,9 @@ class Map:
         self._map[self._layer_filter(agent=agent, layer=layer)] = ary
 
         if layer == 'c':
-            warnings.warn("This method does not update the history")
+            warnings.warn("This method does not update the history and agent status! Use move_agents() instead.")
 
-    def set_positions(self, layer, positions):
+    def _set_positions(self, layer, positions):
         """
         Define [aim, current, next] positions for all agents
         :param layer: 'a' for aim positions, 'c' for current positions, 'n' for next positions or None for all
@@ -105,21 +108,25 @@ class Map:
         Define aim positions for all agents
         :param positions: (boolean) numpy array with shape (agent_count, 2) and x & y coordinates inside for all agents
         """
-        self.set_positions(layer='a', positions=positions)
+        self._set_positions(layer='a', positions=positions)
 
     def set_current_positions(self, positions):
         """
         Define current positions for all agents
         :param positions: (boolean) numpy array with shape (agent_count, 2) and x & y coordinates inside for all agents
         """
-        self.set_positions(layer='c', positions=positions)
+
+        if self._hist.shape[0] > 0:
+            warnings.warn("This method does not update agent status! Use move_agents() instead.")
+
+        self._set_positions(layer='c', positions=positions)
 
     def set_next_positions(self, positions):
         """
         Define next positions for all agents
         :param positions: (boolean) numpy array with shape (agent_count, 2) and x & y coordinates inside for all agents
         """
-        self.set_positions(layer='n', positions=positions)
+        self._set_positions(layer='n', positions=positions)
 
     def get_map(self):
         """
@@ -184,6 +191,9 @@ class Map:
         else:
             return self._hist[0, agent]
 
+    def get_agent_status(self):
+        return self._agent_status
+
     def move_agents(self, commands):
         """
         Checks if desired commands of agents lead to accidents and updates the map accordingly for agents without an accident.
@@ -196,10 +206,6 @@ class Map:
         old_pos_maps = self.get_filtered_map(layer='c')
         old_pos_coord = self.get_positions(layer='c')
 
-        print('Old coordinates:')
-        print(old_pos_coord)
-        print()
-
         # Calculate desired positions
         offset_kernel = [[0, 0],
                          [-1, 0],
@@ -208,19 +214,20 @@ class Map:
                          [0, -1]]
         offset = np.matmul(commands, offset_kernel)
         desired_pos_coord = old_pos_coord + offset
-        print('Desired coordinates:')
-        print(desired_pos_coord)
-        print()
+
+        # If an agent has reached its destination or has had an accident, it is not allowed to move on
+        allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agent_status, ['a', 's', '3']), axis=1),
+                                     old_pos_coord, desired_pos_coord)
 
         # Check whether an agent has already left the map
-        accident = np.any(np.concatenate([desired_pos_coord < 0,
-                                          desired_pos_coord >= [self._size_x, self._size_y]], axis=1), axis=1)
+        accident = np.any(np.concatenate([allowed_pos_coord < 0,
+                                          allowed_pos_coord >= [self._size_x, self._size_y]], axis=1), axis=1)
 
         # If there is an accident for this agent the position stays the old (and he dies there)
-        desired_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, desired_pos_coord)
+        allowed_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, allowed_pos_coord)
 
         # Generate maps for all agents with their desired positions
-        desired_pos_maps = self._generate_layers_from_positions(desired_pos_coord)
+        desired_pos_maps = self._generate_layers_from_positions(allowed_pos_coord)
 
         # Create array contains all positions which creates an accident with other agents
         # -> shape: (size_x, size_y)
@@ -242,18 +249,25 @@ class Map:
         # print('Danger Zones:')
         # self.print_layers(danger_zones)
         accident = np.any([accident, danger_zones[np.arange(self._agent_count),
-                                                  desired_pos_coord[:, 0],
-                                                  desired_pos_coord[:, 1]]], axis=0)
+                                                  allowed_pos_coord[:, 0],
+                                                  allowed_pos_coord[:, 1]]], axis=0)
 
         # If there is an accident for this agent the position stays the old (and he dies there)
-        desired_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, desired_pos_coord)
+        allowed_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, allowed_pos_coord)
 
+        # TODO: third-party fault accident
+
+        # Update agents position
+        self._set_positions(layer='c', positions=allowed_pos_coord)  # TODO: Next Step
+
+        # Update agents status
+        # 'aim achieved' (a),
         goal_achieved = self.get_filtered_map(layer='a')[np.arange(self._agent_count),
-                                                         desired_pos_coord[:, 0],
-                                                         desired_pos_coord[:, 1]]
-
-        self.set_positions(layer='c', positions=desired_pos_coord)  # TODO: Next Step
-        return accident, goal_achieved
+                                                         allowed_pos_coord[:, 0],
+                                                         allowed_pos_coord[:, 1]]
+        self._agent_status = np.where(accident, 's', self._agent_status)  # 'self inflicted accident' (s)
+        # TODO: # 'third-party fault accident' (3)
+        self._agent_status = np.where(goal_achieved, 'a', self._agent_status)
 
     def print_layers(self, layers, fill='\u2590\u2588\u258C'):
         if layers.ndim == 2:

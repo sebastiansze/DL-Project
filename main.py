@@ -60,31 +60,29 @@ if __name__ == '__main__':
         arena.plot_all(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(0)))
 
         # Start playing
-        accident = np.zeros(agent_count, dtype=bool)
-        goal_achieved = np.zeros(agent_count, dtype=bool)
+        running = np.ones(agent_count, dtype=bool)
         time_step = 0
-        while not np.all(accident):
+        while np.any(running):
             time_step += 1
 
             # Apply network for each agent independently
             commands = []
             for agent in range(agent_count):
-                if accident[agent]:
-                    commands.append([1, 0, 0, 0, 0])
-                else:
+                if running[agent]:
                     x = arena.get_map_for_agent(agent)
-
                     # TODO: Do RL stuff here and return a one hot vector (stay, up, left, down, right):
                     y = [1, 0, 0, 0, 0]
                     np.random.shuffle(y)
                     commands.append(y)
+                else:
+                    commands.append([1, 0, 0, 0, 0])
 
             # Apply network output
-            accident_tmp, goal_achieved_tmp = arena.move_agents(commands)
-            accident = np.any([accident_tmp, accident], axis=0)
-            goal_achieved = np.any([goal_achieved_tmp, goal_achieved], axis=0)
-            print('Accident: {}'.format(accident))
-            print('Goal achieved: {}'.format(goal_achieved))
+            arena.move_agents(commands)
+
+            # Check Agent status
+            running = np.invert(np.isin(arena.get_agent_status(), ['a', 's', '3']))
+            print('Agent Status: {}'.format(arena.get_agent_status()))
 
             # Save image
             arena.plot_all(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
