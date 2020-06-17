@@ -222,16 +222,21 @@ class Map:
         # Generate maps for all agents with their desired positions
         desired_pos_maps = self._generate_layers_from_positions(desired_pos_coord)
 
-        # Create array contains all positions which creates an accident in general -> shape: (size_x, size_y)
-        # This contains: obstacles, old positions, desired positions
-        danger_zones = np.any([np.squeeze(self.get_filtered_map(layer='o')),
-                               np.any(old_pos_maps, axis=0),
+        # Create array contains all positions which creates an accident with other agents
+        # -> shape: (size_x, size_y)
+        # Its contains: old positions, desired positions
+        danger_zones = np.any([np.any(old_pos_maps, axis=0),
                                np.any(desired_pos_maps, axis=0)], axis=0)
 
-        # Make danger zones more specific for all single agent -> shape (agent_count, size_x, size_y)
+        # Make danger zones more specific for all single agent (remove own positions)
+        # -> shape (agent_count, size_x, size_y)
         danger_zones = np.all([np.tile(danger_zones, (self._agent_count, 1, 1)),
                                ~old_pos_maps,
                                ~desired_pos_maps], axis=0)
+
+        # Add obstacles to danger zones
+        danger_zones = np.any([np.tile(np.squeeze(self.get_filtered_map(layer='o')), (self._agent_count, 1, 1)),
+                               danger_zones], axis=0)
 
         # Check whether an agent crash into an obstacle or other agent
         # print('Danger Zones:')
@@ -243,8 +248,12 @@ class Map:
         # If there is an accident for this agent the position stays the old (and he dies there)
         desired_pos_coord = np.where(np.expand_dims(accident, axis=1), old_pos_coord, desired_pos_coord)
 
+        goal_achieved = self.get_filtered_map(layer='a')[np.arange(self._agent_count),
+                                                         desired_pos_coord[:, 0],
+                                                         desired_pos_coord[:, 1]]
+
         self.set_positions(layer='c', positions=desired_pos_coord)  # TODO: Next Step
-        return accident
+        return accident, goal_achieved
 
     def print_layers(self, layers, fill='\u2590\u2588\u258C'):
         if layers.ndim == 2:

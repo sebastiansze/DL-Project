@@ -61,6 +61,7 @@ if __name__ == '__main__':
 
         # Start playing
         accident = np.zeros(agent_count, dtype=bool)
+        goal_achieved = np.zeros(agent_count, dtype=bool)
         time_step = 0
         while not np.all(accident):
             time_step += 1
@@ -79,9 +80,11 @@ if __name__ == '__main__':
                     commands.append(y)
 
             # Apply network output
-            new_accident = arena.move_agents(commands)
-            accident = np.any([new_accident, accident], axis=0)
-            print(accident)
+            accident_tmp, goal_achieved_tmp = arena.move_agents(commands)
+            accident = np.any([accident_tmp, accident], axis=0)
+            goal_achieved = np.any([goal_achieved_tmp, goal_achieved], axis=0)
+            print('Accident: {}'.format(accident))
+            print('Goal achieved: {}'.format(goal_achieved))
 
             # Save image
             arena.plot_all(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
