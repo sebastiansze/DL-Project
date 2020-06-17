@@ -406,7 +406,7 @@ class Map:
         else:
             plt.show(block=block)
 
-    def plot_overview(self, plot_agent_status=True, block=True, save_as=None):
+    def plot_overview(self, plot_agent_status=True, block=True, save_as=None, plot_path=True):
         """
         Shows an overview for humans
         :return:
@@ -416,7 +416,7 @@ class Map:
         fig, ax = plt.subplots(1, figsize=(5, 5))
 
         # Plot overview
-        self._plot_overview(ax, plot_agent_status)
+        self._plot_overview(ax, plot_agent_status=plot_agent_status, plot_path=plot_path)
 
         if save_as:
             fig.savefig(save_as)
@@ -424,7 +424,7 @@ class Map:
         else:
             plt.show(block=block)
 
-    def plot_all(self, plot_agent_status=True, block=True, save_as=None):
+    def plot_all(self, plot_agent_status=True, block=True, save_as=None, plot_path=True):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
@@ -437,7 +437,7 @@ class Map:
 
         # Plot overview on the left side
         ax = plt.Subplot(fig, outer[0])
-        self._plot_overview(ax, plot_agent_status)
+        self._plot_overview(ax, plot_agent_status=plot_agent_status, plot_path=plot_path)
         ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
 
