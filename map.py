@@ -196,8 +196,9 @@ class Map:
 
     def move_agents(self, commands):
         """
-        Checks if desired commands of agents lead to accidents and updates the map accordingly for agents without an accident.
-        :param commands: (boolean) numpy array with shape (agent_count, 5) which contains one hot vectors for all agents.
+        Checks if desired commands of agents lead to accidents and
+        updates the map accordingly for agents without an accident.
+        :param commands: (boolean) numpy array with shape (agent_count, 5) which contains one hot vectors for all agents
         One hot vectors contain: [stay, up, right, down, left]
         :return: boolean array with shape (agent_count, 1) with True if the command is valid for this agent and
         False if there was an accident.
@@ -327,7 +328,7 @@ class Map:
         ax.set_xticks([])
         ax.set_yticks([])
 
-    def _plot_overview(self, ax):
+    def _plot_overview(self, ax, plot_agent_status=True):
         # Obstacles
         obstacles = self.get_filtered_map(layer='o')[0]
         self._plot_layer(ax, obstacles, 'black')
@@ -335,17 +336,17 @@ class Map:
         # Agents fields
         for i_agent in range(self._agent_count):
             start_pos = self.get_start_positions(agent=i_agent)
-            a_c_n_pos = self._map[self._layer_filter(agent=i_agent)]
+            a_c_n_map = self._map[self._layer_filter(agent=i_agent)]
 
             color = self._get_plot_color(i_agent, next_step=False)
             color_next = self._get_plot_color(i_agent, next_step=True)
 
             # Plot next position
             if self._next_step:
-                self._plot_layer(ax, a_c_n_pos[2], color_next)
+                self._plot_layer(ax, a_c_n_map[2], color_next)
 
             # Plot current position
-            self._plot_layer(ax, a_c_n_pos[1], color)
+            self._plot_layer(ax, a_c_n_map[1], color)
 
             # Plot start position
             if start_pos is not None:
@@ -359,6 +360,15 @@ class Map:
                 y = self._size_x - y - 1 + 0.15
                 self._plot_label(ax, x, y, "E", color)
 
+            # Plot agent status
+            if plot_agent_status:
+                for status, symbol in zip(['a', 's', '3'], ['\u2713', '\u2717', '\u2717']):  # \u2620
+                    if self._agent_status[i_agent] == status:
+                        for y, x in self.get_positions(agent=i_agent, layer='c'):
+                            x = x + 0.2
+                            y = self._size_x - y - 1 + 0.15
+                            self._plot_label(ax, x, y, symbol, 'black')
+
         # Plot Border
         self._plot_border(ax, self._size_x, self._size_y)
 
@@ -368,9 +378,10 @@ class Map:
         ax.set_xticks([])
         ax.set_yticks([])
 
-    def plot_layer(self, layer, block=True):
+    def plot_layer(self, layer, block=True, save_as=None):
         """
         Shows a single layer
+        :param save_as:
         :param block:
         :param layer: number of agent
         :return:
@@ -382,9 +393,13 @@ class Map:
         # Plot Layer
         self._plot_layer(ax, layer, 'black')
 
-        plt.show(block=block)
+        if save_as:
+            fig.savefig(save_as)
+            plt.close(fig)
+        else:
+            plt.show(block=block)
 
-    def plot_overview(self, block=True):
+    def plot_overview(self, plot_agent_status=True, block=True, save_as=None):
         """
         Shows an overview for humans
         :return:
@@ -394,11 +409,15 @@ class Map:
         fig, ax = plt.subplots(1, figsize=(5, 5))
 
         # Plot overview
-        self._plot_overview(ax)
+        self._plot_overview(ax, plot_agent_status)
 
-        plt.show(block=block)
+        if save_as:
+            fig.savefig(save_as)
+            plt.close(fig)
+        else:
+            plt.show(block=block)
 
-    def plot_all(self, block=True, save_as=None):
+    def plot_all(self, plot_agent_status=True, block=True, save_as=None):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
@@ -411,7 +430,7 @@ class Map:
 
         # Plot overview on the left side
         ax = plt.Subplot(fig, outer[0])
-        self._plot_overview(ax)
+        self._plot_overview(ax, plot_agent_status)
         ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
 
@@ -470,11 +489,11 @@ if __name__ == '__main__':
                                  [1, 0],
                                  [2, 0],
                                  [0, 4]])
-    accident = arena.move_agents([[0, 0, 1, 0, 0],
-                                  [1, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 1],
-                                  [0, 0, 0, 1, 0]])
-    print(accident)
+    arena.move_agents([[0, 0, 1, 0, 0],
+                       [1, 0, 0, 0, 0],
+                       [0, 0, 0, 0, 1],
+                       [0, 0, 0, 1, 0]])
+    print(arena.get_agent_status())
     # arena.set_next_positions([[0, 2],
     #                           [1, 2],
     #                           [3, 1],
