@@ -1,7 +1,7 @@
 import copy
 import colorsys
 import warnings
-
+import pickle
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -12,50 +12,56 @@ from matplotlib.font_manager import FontProperties
 
 
 class Map:
-    def __init__(self, size_x, size_y, agent_count=1, obstacle_map=None, next_step=False):
-        self._size_x = size_x
-        self._size_y = size_y
-        self._agent_count = agent_count
-        self._next_step = next_step
+    def __init__(self, size_x, size_y, agent_count=1, obstacle_map=None, next_step=False, load_from_file=None):
+        if load_from_file:
+            f = open(load_from_file, 'rb')
+            tmp_dict = pickle.load(f)
+            f.close()
+            self.__dict__.update(tmp_dict)
+        else:
+            self._size_x = size_x
+            self._size_y = size_y
+            self._agent_count = agent_count
+            self._next_step = next_step
 
-        # Check input values
-        if agent_count < 1:
-            raise ValueError('number of agents must be at least one')
-        if size_x * size_y < 2 * agent_count:
-            raise ValueError('board size is to small')
+            # Check input values
+            if agent_count < 1:
+                raise ValueError('number of agents must be at least one')
+            if size_x * size_y < 2 * agent_count:
+                raise ValueError('board size is to small')
 
-        # Create layer array of type char to filter the map
-        self._layers = np.array([0, 'o'], dtype=np.dtype('U1'))  # obstacles
-        for p in range(agent_count):
-            unstacked_layers = [self._layers,
-                                np.array([p + 1, 'a'], dtype=np.dtype('U1')),  # aim position
-                                np.array([p + 1, 'c'], dtype=np.dtype('U1'))]  # current position
-            if next_step:
-                unstacked_layers.append(np.array([p + 1, 'n'], dtype=np.dtype('U1')))  # next position
-            self._layers = np.vstack(unstacked_layers)  # shape: (obstacle+agent_count*(aim+current[+ next]), 2)
-            # -> 2 for two filters: agents and layers
+            # Create layer array of type char to filter the map
+            self._layers = np.array([0, 'o'], dtype=np.dtype('U1'))  # obstacles
+            for p in range(agent_count):
+                unstacked_layers = [self._layers,
+                                    np.array([p + 1, 'a'], dtype=np.dtype('U1')),  # aim position
+                                    np.array([p + 1, 'c'], dtype=np.dtype('U1'))]  # current position
+                if next_step:
+                    unstacked_layers.append(np.array([p + 1, 'n'], dtype=np.dtype('U1')))  # next position
+                self._layers = np.vstack(unstacked_layers)  # shape: (obstacle+agent_count*(aim+current[+ next]), 2)
+                # -> 2 for two filters: agents and layers
 
-        # Create map skeleton
-        nr_layers = 1 + agent_count * (3 if next_step else 2)  # obstacle + agent_count * (aim + current [+ next])
-        self._map = np.zeros((nr_layers, size_x, size_y), dtype=bool)  # shape: (nr_layers, size_x, size_y)
+            # Create map skeleton
+            nr_layers = 1 + agent_count * (3 if next_step else 2)  # obstacle + agent_count * (aim + current [+ next])
+            self._map = np.zeros((nr_layers, size_x, size_y), dtype=bool)  # shape: (nr_layers, size_x, size_y)
 
-        # Add obstacles to map
-        if obstacle_map is not None:
-            if not isinstance(obstacle_map, np.ndarray):
-                raise TypeError('obstacle map must ba a numpy array')
-            if obstacle_map.shape == (size_x, size_y):
-                self._map[0, :, :] = obstacle_map
-            else:
-                raise ValueError('obstacle map must have the same size as main map')
+            # Add obstacles to map
+            if obstacle_map is not None:
+                if not isinstance(obstacle_map, np.ndarray):
+                    raise TypeError('obstacle map must ba a numpy array')
+                if obstacle_map.shape == (size_x, size_y):
+                    self._map[0, :, :] = obstacle_map
+                else:
+                    raise ValueError('obstacle map must have the same size as main map')
 
-        # History
-        self._hist = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
+            # History
+            self._hist = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
 
-        # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s) 'third-party fault accident' (3)
-        self._agent_status = np.zeros(agent_count, dtype=np.dtype('U1'))
+            # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s) 'third-party fault accident' (3)
+            self._agent_status = np.zeros(agent_count, dtype=np.dtype('U1'))
 
-        # Color
-        self._color_hue_offset = np.random.uniform()
+            # Color
+            self._color_hue_offset = np.random.uniform()
 
     def _layer_filter(self, agent=None, layer=None):
         agent = None if agent is None else str(int(agent) + 1)  # in self._layers agent number starts at one
@@ -477,6 +483,11 @@ class Map:
             plt.close(fig)
         else:
             plt.show(block=block)
+
+    def save(self, path):
+        f = open(path, 'wb')
+        pickle.dump(self.__dict__, f, 2)
+        f.close()
 
 
 if __name__ == '__main__':
