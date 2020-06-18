@@ -56,6 +56,7 @@ class Map:
 
             # History
             self._hist = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
+            self._hist_next = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
 
             # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s) 'third-party fault accident' (3)
             self._agent_status = np.zeros(agent_count, dtype=np.dtype('U1'))
@@ -75,8 +76,11 @@ class Map:
         layers[positions[:, 0], positions[:, 1], positions[:, 2]] = [True for _ in range(self._agent_count)]
         return layers
 
-    def _add_hist(self, positions):
-        self._hist = np.concatenate([self._hist, positions], 0)
+    def _add_hist(self, positions, next_step=False):
+        if next_step:
+            self._hist_next = np.concatenate([self._hist, positions], 0)
+        else:
+            self._hist = np.concatenate([self._hist, positions], 0)
 
     def set_position(self, agent, layer, x, y):
         """
@@ -106,6 +110,8 @@ class Map:
         # Add new positions to history
         if layer == 'c':
             self._add_hist(np.expand_dims(positions, 0))
+        if layer == 'n' and self._next_step:
+            self._add_hist(np.expand_dims(positions, 0), next_step=True)
 
         self._map[self._layer_filter(layer=layer)] = self._generate_layers_from_positions(positions)
 

@@ -34,7 +34,7 @@ if __name__ == '__main__':
         # print(map_size)
         # print(obstacle_map.shape)
         arena = Map(size_x=map_size[0], size_y=map_size[1], agent_count=agent_count,
-                    obstacle_map=obstacle_map, next_step=False)
+                    obstacle_map=obstacle_map, next_step=True)
 
         # Set start and end positions
         all_border_cells = np.concatenate([[[x, 0] for x in range(0, map_size[0], 2)],
