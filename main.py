@@ -2,9 +2,13 @@ import os
 import numpy as np
 from datetime import datetime
 
+from network import Network
 from map import Map
 
 if __name__ == '__main__':
+
+    # Init network
+    net = Network()
 
     # Iterate over games:
     i_game = -1
@@ -51,6 +55,9 @@ if __name__ == '__main__':
         arena.set_aim_positions(all_border_cells[0:agent_count])
         arena.set_current_positions(all_border_cells[agent_count:agent_count * 2])
 
+        # Generate Agents
+        agents = net.generate_agents(agent_count)
+
         # Check if directory for images exists
         # img_game_dir = os.path.join('img', '{}_game_{}'.format(game_dt, i_game))
         # if not os.path.exists(img_game_dir):
@@ -60,37 +67,35 @@ if __name__ == '__main__':
         # arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(0)))
 
         # Start playing
-        running = np.ones(agent_count, dtype=bool)
         time_step = 0
-        while np.any(running):
+        while arena.is_anyone_still_moving():
             time_step += 1
             # print('  - time step: {}'.format(time_step))
 
             # Apply network for each agent independently
             commands = []
-            for agent in range(agent_count):
-                if running[agent]:
-                    x = arena.get_map_for_agent(agent)
-                    # TODO: Do RL stuff here and return a one hot vector (stay, up, left, down, right):
-                    y = [1, 0, 0, 0, 0]
-                    np.random.shuffle(y)
-                    commands.append(y)
-                else:
-                    commands.append([1, 0, 0, 0, 0])
+            for i_agent, agent in enumerate(agents):
+                agent_map = arena.get_map_for_agent(i_agent)
+                command = agent.move(agent_map)
+                commands.append(command)
 
             # Apply network output
             arena.move_agents(commands)
 
-            # Check Agent status
-            running = np.invert(np.isin(arena.get_agent_status(), ['a', 's', '3']))
-            # print('    - Agent Status: {}'.format(arena.get_agent_status()))
+            # Print Agent status
+            # print('    - Agent Status: {}'.format(arena.get_agents_status()))
+            # print('    - Agent Duration: {}'.format(arena.get_agents_duration()))
+            # print('    - Agent Distance: {}'.format(arena.get_agents_distance()))
 
             # Save image
             # arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
 
-            # TODO: Do penalty stuff here...
+        # Reward and penalty
+        net.backward(agent_status=arena.get_agents_status(),
+                     durations=arena.get_agents_duration(),
+                     distances=arena.get_agents_distance())
 
-        if time_step > 99 and np.any(arena.get_agent_status() == 'a'):
+        if time_step > 99 and np.any(arena.get_agents_status() == 'a'):
             arena.plot_overview(save_as=os.path.join('img', '{}_time_{}.png'.format(game_dt, time_step)))
         print('Time Steps: {}'.format(time_step))
         print()

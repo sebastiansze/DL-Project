@@ -59,7 +59,9 @@ class Map:
             self._hist_next = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
 
             # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s) 'third-party fault accident' (3)
-            self._agent_status = np.zeros(agent_count, dtype=np.dtype('U1'))
+            self._agents_status = np.zeros(agent_count, dtype=np.dtype('U1'))
+            self._agents_duration = np.zeros(agent_count)
+            self._agents_distance = np.zeros(agent_count)
 
             # Color
             self._color_hue_offset = np.random.uniform()
@@ -203,8 +205,17 @@ class Map:
         else:
             return self._hist[0, agent]
 
-    def get_agent_status(self):
-        return self._agent_status
+    def get_agents_status(self):
+        return self._agents_status
+
+    def get_agents_duration(self):
+        return self._agents_duration
+
+    def get_agents_distance(self):
+        return self._agents_distance
+
+    def is_anyone_still_moving(self):
+        return np.any(np.invert(np.isin(self.get_agents_status(), ['a', 's', '3'])))
 
     def move_agents(self, commands):
         """
@@ -229,7 +240,7 @@ class Map:
         desired_pos_coord = old_pos_coord + offset
 
         # If an agent has reached its destination or has had an accident, it is not allowed to move on
-        allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agent_status, ['a', 's', '3']), axis=1),
+        allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agents_status, ['a', 's', '3']), axis=1),
                                      old_pos_coord, desired_pos_coord)
 
         # Check whether an agent has already left the map
@@ -278,9 +289,15 @@ class Map:
         goal_achieved = self.get_filtered_map(layer='a')[np.arange(self._agent_count),
                                                          allowed_pos_coord[:, 0],
                                                          allowed_pos_coord[:, 1]]
-        self._agent_status = np.where(accident, 's', self._agent_status)  # 'self inflicted accident' (s)
+        self._agents_status = np.where(accident, 's', self._agents_status)  # 'self inflicted accident' (s)
         # TODO: # 'third-party fault accident' (3)
-        self._agent_status = np.where(goal_achieved, 'a', self._agent_status)
+        self._agents_status = np.where(goal_achieved, 'a', self._agents_status)
+
+        # Update duration and distance
+        self._agents_duration = np.where(np.isin(self.get_agents_status(), ['a', 's', '3']),
+                                         self._agents_duration, self._agents_duration + 1)
+        self._agents_distance = np.where(np.all(allowed_pos_coord == old_pos_coord, axis=1),
+                                         self._agents_distance, self._agents_distance + 1)
 
     def print_layers(self, layers, fill='\u2590\u2588\u258C'):
         if layers.ndim == 2:
@@ -382,7 +399,7 @@ class Map:
             # Plot agent status
             if plot_agent_status:
                 for status, symbol in zip(['a', 's', '3'], ['\u2713', '\u2717', '\u2717']):  # \u2620
-                    if self._agent_status[i_agent] == status:
+                    if self._agents_status[i_agent] == status:
                         for y, x in self.get_positions(agent=i_agent, layer='c'):
                             x = x + 0.2
                             y = self._size_x - y - 1 + 0.15
@@ -517,7 +534,7 @@ if __name__ == '__main__':
                        [1, 0, 0, 0, 0],
                        [0, 0, 0, 0, 1],
                        [0, 0, 0, 1, 0]])
-    print(arena.get_agent_status())
+    print(arena.get_agents_status())
     # arena.set_next_positions([[0, 2],
     #                           [1, 2],
     #                           [3, 1],
