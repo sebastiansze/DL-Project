@@ -520,7 +520,7 @@ if __name__ == '__main__':
                   [0, 0, 1, 0, 0, 0, 0, 0],
                   [0, 0, 0, 0, 0, 0, 0, 0],
                   [0, 0, 0, 0, 0, 0, 0, 0]])
-    arena = Map(o.shape[0], o.shape[1], 4, o, next_step=False)
+    arena = Map(o.shape[0], o.shape[1], 4, o, next_step=True)
 
     arena.set_aim_positions([[0, o.shape[1] - 1],
                              [1, o.shape[1] - 1],
@@ -535,10 +535,10 @@ if __name__ == '__main__':
                        [0, 0, 0, 0, 1],
                        [0, 0, 0, 1, 0]])
     print(arena.get_agents_status())
-    # arena.set_next_positions([[0, 2],
-    #                           [1, 2],
-    #                           [3, 1],
-    #                           [2, 4]])
+    arena.set_next_positions([[0, 2],
+                              [1, 2],
+                              [3, 1],
+                              [2, 4]])
     # print(arena.get_map())
     # print(arena.get_map_for_agent(0))
     # print(game_map.get_filtered_map(agent='2', layer='a'))
@@ -546,3 +546,4 @@ if __name__ == '__main__':
     # arena.plot_overview()
     # arena.plot_layer(arena.get_map_for_agent(0)[0])
     arena.plot_all()
+    print(arena.get_map_for_agent(agent=0))

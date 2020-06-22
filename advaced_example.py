@@ -21,17 +21,36 @@ if __name__ == '__main__':
         print('started at {}'.format(game_dt))
 
         # Define number of agents and map size randomly
-        agent_count = 1
-        map_size = np.array([25, 25])
+        agent_count = np.random.randint(1, 5)
+        print('Number of Agents: {}'.format(agent_count))
+        map_size = np.random.randint(3 + agent_count, 20 + agent_count, 2)
+        print('Size of Arena: {}'.format(map_size))
 
         # Create obstacle map randomly
-        arena = Map(size_x=map_size[0], size_y=map_size[1], agent_count=agent_count, next_step=False)
+        obstacle_map_size = np.random.randint((1, 1), map_size - 2, 2)
+        obstacle_map = np.random.choice([True, False, False], obstacle_map_size)
+        padding_l_t = np.rint((map_size - obstacle_map.shape) / 2).astype(int)
+        padding_r_b = np.array(map_size - obstacle_map.shape - padding_l_t, dtype=int)
+        obstacle_map = np.pad(obstacle_map, [(padding_l_t[0], padding_r_b[0]),
+                                             (padding_l_t[1], padding_r_b[1])])
+        # print(padding_l_t)
+        # print(padding_r_b)
+        # print(map_size)
+        # print(obstacle_map.shape)
+        arena = Map(size_x=map_size[0], size_y=map_size[1], agent_count=agent_count,
+                    obstacle_map=obstacle_map, next_step=True)
 
-        # Set start and end positions randomly
+        # Set start and end positions
         all_border_cells = np.concatenate([[[x, 0] for x in range(0, map_size[0], 2)],
                                            [[x, map_size[1] - 1] for x in range(0, map_size[0], 2)],
                                            [[0, y] for y in range(1, map_size[1] - 1, 2)],
                                            [[map_size[0] - 1, y] for y in range(1, map_size[1] - 1, 2)]])
+        # print(all_border_cells.shape)
+        # print(np.unique(all_border_cells, axis=0).shape)
+        # ary = np.zeros(map_size, dtype=bool)
+        # for x, y in all_border_cells:
+        #     ary[x, y] = True
+        # arena.print_layers(ary)
         np.random.shuffle(all_border_cells)
         arena.set_aim_positions(all_border_cells[0:agent_count])
         arena.set_current_positions(all_border_cells[agent_count:agent_count * 2])
@@ -51,7 +70,7 @@ if __name__ == '__main__':
         time_step = 0
         while arena.is_anyone_still_moving():
             time_step += 1
-            print('  - time step: {}'.format(time_step))
+            # print('  - time step: {}'.format(time_step))
 
             # Apply network for each agent independently
             commands = []
@@ -64,9 +83,9 @@ if __name__ == '__main__':
             arena.move_agents(commands)
 
             # Print Agent status
-            print('    - Agent Status: {}'.format(arena.get_agents_status()))
-            print('    - Agent Duration: {}'.format(arena.get_agents_duration()))
-            print('    - Agent Distance: {}'.format(arena.get_agents_distance()))
+            # print('    - Agent Status: {}'.format(arena.get_agents_status()))
+            # print('    - Agent Duration: {}'.format(arena.get_agents_duration()))
+            # print('    - Agent Distance: {}'.format(arena.get_agents_distance()))
 
             # Save image
             # arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
@@ -76,5 +95,7 @@ if __name__ == '__main__':
                      durations=arena.get_agents_duration(),
                      distances=arena.get_agents_distance())
 
+        if time_step > 99 and np.any(arena.get_agents_status() == 'a'):
+            arena.plot_overview(save_as=os.path.join('img', '{}_time_{}.png'.format(game_dt, time_step)))
         print('Time Steps: {}'.format(time_step))
         print()
