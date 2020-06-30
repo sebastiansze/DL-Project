@@ -59,7 +59,7 @@ class Map:
             self._hist_next = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
 
             # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s) 'third-party fault accident' (3)
-            self._agents_status = np.zeros(agent_count, dtype=np.dtype('U1'))
+            self._agents_conditions = np.zeros(agent_count, dtype=np.dtype('U1'))
             self._agents_duration = np.zeros(agent_count)
             self._agents_distance = np.zeros(agent_count)
 
@@ -183,6 +183,40 @@ class Map:
 
         return agent_map
 
+    def get_danger_zone_map(self, agent=None, desired_pos_maps=None, include_obstacles=False):
+        """
+        Get a map for each
+        :param agent: number of agent, None for all agents
+        :param desired_pos_maps: if needed, desired positions of agents can add here
+        :param include_obstacles: True, if Obstacle map should be added to danger zone map
+        :return:
+        """
+        current_pos_maps = self.get_filtered_map(agent=agent, layer='c')
+        nr_agents = current_pos_maps.shape[0]
+
+        # If no desired position given create a pseudo map for further calculations
+        if desired_pos_maps is None:
+            desired_pos_maps = np.zeros((nr_agents, self._size_x, self._size_y), dtype=bool)
+
+        # Create array contains all positions which creates an accident with other agents
+        # -> shape: (size_x, size_y)
+        # Its contains: old positions, desired positions (if given)
+        danger_zones = np.any([np.any(current_pos_maps, axis=0),
+                               np.any(desired_pos_maps, axis=0)], axis=0)
+
+        # Make danger zones more specific for all single agent (remove own positions)
+        # -> shape (agent_count, size_x, size_y)
+        danger_zones = np.all([np.tile(danger_zones, (nr_agents, 1, 1)),
+                               ~current_pos_maps,
+                               ~desired_pos_maps], axis=0)
+
+        # Add obstacles to danger zones
+        if include_obstacles:
+            danger_zones = np.any([np.tile(np.squeeze(self.get_filtered_map(layer='o')), (nr_agents, 1, 1)),
+                                   danger_zones], axis=0)
+
+        return danger_zones
+
     def get_positions(self, agent=None, layer=None):
         """
         Returns positions as coordinates of wanted agents and layers
@@ -205,17 +239,65 @@ class Map:
         else:
             return self._hist[0, agent]
 
-    def get_agents_status(self):
-        return self._agents_status
+    def get_agents_conditions(self):
+        return self._agents_conditions
 
-    def get_agents_duration(self):
+    def get_agents_durations_since_start(self):
         return self._agents_duration
 
-    def get_agents_distance(self):
+    def get_agents_distances_since_start(self):
         return self._agents_distance
 
+    def get_agents_next_states_min_distances(self):
+        """
+        Get an numpy array with shape [agent_count, 5, 3] that includes the euclidean distances to
+        next obstacle (or end of map), next other agent and aim (dim_2 = 3) for all agents (dim_0 = agent_count) and
+        all possible action 'stay', 'up', 'right', 'down', 'left' (dim_1 = 5).
+        :return:
+        """
+        # create matrix with coordinates for all possible and impossible next states for all agents
+        # -> shape: [agent_count, 5, 2]
+        current_positions = np.tile(np.expand_dims(self.get_positions(layer='c'), 1), (1, 5, 1))
+        actions_offset = np.tile([[0, 0],
+                                  [-1, 0],
+                                  [0, 1],
+                                  [1, 0],
+                                  [0, -1]], (self._agent_count, 1, 1))
+        next_states = current_positions + actions_offset
+
+        # create list of coordinate tuples of all obstacles including end of map points
+        # -> shape: [agent_count, x, 2] (duplicates along dim_0)
+        obstacles = np.concatenate([[[x, -1] for x in range(-1, self._size_x + 1)],
+                                    [[x, self._size_y] for x in range(-1, self._size_x + 1)],
+                                    [[-1, y] for y in range(0, self._size_y)],
+                                    [[self._size_x, y] for y in range(0, self._size_y)],
+                                    self.get_positions(layer='o')])
+        obstacles = np.tile(obstacles, (self._agent_count, 1, 1))
+
+        # create list of coordinate tuples of other agents
+        # shape: [agent_count, agent_count-1, 2]
+        danger_zones = np.argwhere(self.get_danger_zone_map(include_obstacles=False))
+        danger_zones = np.array([danger_zones[danger_zones[:, 0] == i][:, 1:3] for i in range(self._agent_count)])
+
+        # create list of coordinate tuples of all agents aims
+        # -> shape: [agent_count, 1, 2] (dim_1 added)
+        aims = np.expand_dims(self.get_positions(layer='a'), 1)
+
+        # get all distances
+        distances = np.zeros((self._agent_count, 5, 3))
+        for i_agent in range(self._agent_count):
+            for i_states, states in enumerate(next_states[i_agent]):
+                for i_topic, topic in enumerate([obstacles, danger_zones, aims]):
+                    if topic[i_agent].shape[0] > 0:
+                        min_dist = np.min(np.linalg.norm(states - topic[i_agent], axis=1))
+                    else:
+                        min_dist = np.inf
+                    distances[i_agent, i_states, i_topic] = min_dist
+
+        return distances
+
     def is_anyone_still_moving(self):
-        return np.any(np.invert(np.isin(self.get_agents_status(), ['a', 's', '3'])))
+        return np.any(np.invert(np.isin(self.get_agents_conditions(), ['a', 's', '3'])))
 
     def move_agents(self, commands):
         """
@@ -227,7 +309,6 @@ class Map:
         False if there was an accident.
         """
 
-        old_pos_maps = self.get_filtered_map(layer='c')
         old_pos_coord = self.get_positions(layer='c')
 
         # Calculate desired positions
@@ -239,8 +320,8 @@ class Map:
         offset = np.matmul(commands, offset_kernel)
         desired_pos_coord = old_pos_coord + offset
 
-        # If an agent has reached its destination or has had an accident, it is not allowed to move on
-        allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agents_status, ['a', 's', '3']), axis=1),
+        # If an agent has reached its destination or has had an accident, it is not allowed to predict on
+        allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agents_conditions, ['a', 's', '3']), axis=1),
                                      old_pos_coord, desired_pos_coord)
 
         # Check whether an agent has already left the map
@@ -253,21 +334,7 @@ class Map:
         # Generate maps for all agents with their desired positions
         desired_pos_maps = self._generate_layers_from_positions(allowed_pos_coord)
 
-        # Create array contains all positions which creates an accident with other agents
-        # -> shape: (size_x, size_y)
-        # Its contains: old positions, desired positions
-        danger_zones = np.any([np.any(old_pos_maps, axis=0),
-                               np.any(desired_pos_maps, axis=0)], axis=0)
-
-        # Make danger zones more specific for all single agent (remove own positions)
-        # -> shape (agent_count, size_x, size_y)
-        danger_zones = np.all([np.tile(danger_zones, (self._agent_count, 1, 1)),
-                               ~old_pos_maps,
-                               ~desired_pos_maps], axis=0)
-
-        # Add obstacles to danger zones
-        danger_zones = np.any([np.tile(np.squeeze(self.get_filtered_map(layer='o')), (self._agent_count, 1, 1)),
-                               danger_zones], axis=0)
+        danger_zones = self.get_danger_zone_map(desired_pos_maps=desired_pos_maps, include_obstacles=True)
 
         # Check whether an agent crash into an obstacle or other agent
         # print('Danger Zones:')
@@ -289,12 +356,12 @@ class Map:
         goal_achieved = self.get_filtered_map(layer='a')[np.arange(self._agent_count),
                                                          allowed_pos_coord[:, 0],
                                                          allowed_pos_coord[:, 1]]
-        self._agents_status = np.where(accident, 's', self._agents_status)  # 'self inflicted accident' (s)
+        self._agents_conditions = np.where(accident, 's', self._agents_conditions)  # 'self inflicted accident' (s)
         # TODO: # 'third-party fault accident' (3)
-        self._agents_status = np.where(goal_achieved, 'a', self._agents_status)
+        self._agents_conditions = np.where(goal_achieved, 'a', self._agents_conditions)
 
         # Update duration and distance
-        self._agents_duration = np.where(np.isin(self.get_agents_status(), ['a', 's', '3']),
+        self._agents_duration = np.where(np.isin(self.get_agents_conditions(), ['a', 's', '3']),
                                          self._agents_duration, self._agents_duration + 1)
         self._agents_distance = np.where(np.all(allowed_pos_coord == old_pos_coord, axis=1),
                                          self._agents_distance, self._agents_distance + 1)
@@ -379,7 +446,7 @@ class Map:
 
             # Plot path
             if plot_path:
-                offset = (1/(self._agent_count + 1) * (i_agent + 1) * 0.5) - 0.25
+                offset = (1 / (self._agent_count + 1) * (i_agent + 1) * 0.5) - 0.25
                 x = self._hist[:, i_agent, 1] + 0.5 + offset
                 y = self._size_x - self._hist[:, i_agent, 0] - 0.5 + offset
                 ax.plot(x, y, '-', color=color, zorder=0)
@@ -399,7 +466,7 @@ class Map:
             # Plot agent status
             if plot_agent_status:
                 for status, symbol in zip(['a', 's', '3'], ['\u2713', '\u2717', '\u2717']):  # \u2620
-                    if self._agents_status[i_agent] == status:
+                    if self._agents_conditions[i_agent] == status:
                         for y, x in self.get_positions(agent=i_agent, layer='c'):
                             x = x + 0.2
                             y = self._size_x - y - 1 + 0.15
@@ -534,7 +601,7 @@ if __name__ == '__main__':
                        [1, 0, 0, 0, 0],
                        [0, 0, 0, 0, 1],
                        [0, 0, 0, 1, 0]])
-    print(arena.get_agents_status())
+    print(arena.get_agents_conditions())
     arena.set_next_positions([[0, 2],
                               [1, 2],
                               [3, 1],
