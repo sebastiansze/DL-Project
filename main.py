@@ -3,7 +3,7 @@ import numpy as np
 from datetime import datetime
 
 from network import Network
-from map import Map
+from map import Map, print_layers
 
 
 def get_random_obstacle_map(map_size):

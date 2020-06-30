@@ -11,6 +11,28 @@ from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 
 
+def print_layers(layers, fill='\u2590\u2588\u258C'):
+    if layers.ndim == 2:
+        layers = np.expand_dims(layers, 0)
+
+    if layers.ndim != 3:
+        raise ValueError('Invalid number of dimensions')
+
+    print('\u250f' + '\u2501' * (layers.shape[2] * 3) + '\u2513')
+    for i, layer in enumerate(layers):
+        if i > 0:
+            print('\u2523' + '\u2501' * (layers.shape[2] * 3) + '\u252B')
+        for row in layer:
+            print('\u2503', end='')
+            for cell in row:
+                if cell:
+                    print(fill, end='')
+                else:
+                    print('   ', end='')
+            print('\u2503')
+    print('\u2517' + '\u2501' * (layers.shape[2] * 3) + '\u251B')
+
+
 class Map:
     def __init__(self, size_x, size_y, agent_count=1, obstacle_map=None, next_step=False, load_from_file=None):
         if load_from_file:
@@ -161,10 +183,11 @@ class Map:
 
     def get_map_for_agent(self, agent, view_filed=None):
         """
-        Get map for agent X's point of view
+        Get map for agent X's point of view including: obstacles, own aim position,
+        own current position (, own next position), others current position (, others next position).
         :param agent: number of agent
         :param view_filed: size of view field
-        :return: map as boolean array with shape (, size_x, size_y)
+        :return: map as boolean array with shape [4 or 6, size_x, size_y]
         """
         obstacles = self._map[self._layer_filter(layer='o')]
         a_c_n_pos = self._map[self._layer_filter(agent=agent)]
@@ -338,7 +361,7 @@ class Map:
 
         # Check whether an agent crash into an obstacle or other agent
         # print('Danger Zones:')
-        # self.print_layers(danger_zones)
+        # print_layers(danger_zones)
         accident = np.any([accident, danger_zones[np.arange(self._agent_count),
                                                   allowed_pos_coord[:, 0],
                                                   allowed_pos_coord[:, 1]]], axis=0)
@@ -365,27 +388,6 @@ class Map:
                                          self._agents_duration, self._agents_duration + 1)
         self._agents_distance = np.where(np.all(allowed_pos_coord == old_pos_coord, axis=1),
                                          self._agents_distance, self._agents_distance + 1)
-
-    def print_layers(self, layers, fill='\u2590\u2588\u258C'):
-        if layers.ndim == 2:
-            layers = np.expand_dims(layers, 0)
-
-        if layers.ndim != 3:
-            raise ValueError('Invalid number of dimensions')
-
-        print('\u250f' + '\u2501' * (layers.shape[2] * 3) + '\u2513')
-        for i, layer in enumerate(layers):
-            if i > 0:
-                print('\u2523' + '\u2501' * (layers.shape[2] * 3) + '\u252B')
-            for row in layer:
-                print('\u2503', end='')
-                for cell in row:
-                    if cell:
-                        print(fill, end='')
-                    else:
-                        print('   ', end='')
-                print('\u2503')
-        print('\u2517' + '\u2501' * (layers.shape[2] * 3) + '\u251B')
 
     def _plot_label(self, ax, x, y, text, color):
         prop = FontProperties(family='monospace', weight='black')

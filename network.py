@@ -1,4 +1,5 @@
 import numpy as np
+from map import print_layers
 
 
 class Network:
@@ -22,6 +23,20 @@ class Agent:
         Do forward pass
         :return:
         """
+
+        obstacle_map = input_map[0]
+        own_current_position_coordinates = np.argwhere(input_map[1])[0]
+        own_aim_position_coordinates = np.argwhere(input_map[2])[0]
+        others_current_positions_map = input_map[3]
+
+        print_layers(obstacle_map)
+        print(own_current_position_coordinates)
+        print(own_aim_position_coordinates)
+        print_layers(others_current_positions_map)
+        print()
+        print('Hier steht ein "input()". Deshalb gehts nicht weiter...')
+        input()
+
         # TODO
         y = [1, 0, 0, 0, 0]
         np.random.shuffle(y)
