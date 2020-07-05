@@ -3,7 +3,10 @@ import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
 
-from Agents import Agents
+# KERAS_BACKEND has to be set before loading keras (in LSTM or MLP class)
+os.environ["KERAS_BACKEND"] = 'plaidml.keras.backend'
+
+from DQN import DQNAgents
 from map import Map, print_layers
 
 
@@ -13,16 +16,16 @@ from map import Map, print_layers
 def define_parameters():
     params = dict()
     params['epsilon_decay_linear'] = 1 / 75
-    params['learning_rate'] = 0.0005
-    params['first_layer_size'] = 150  # neurons in the first layer
-    params['second_layer_size'] = 150  # neurons in the second layer
-    params['third_layer_size'] = 150  # neurons in the third layer
+    params['learning_rate'] = 0.05  # 0.0005
+    params['first_layer_size'] = 50  # neurons in the first layer
+    params['second_layer_size'] = 50  # neurons in the second layer
+    params['third_layer_size'] = 50  # neurons in the third layer
     params['episodes'] = 150
     params['memory_size'] = 2500
     params['batch_size'] = 500
     params['weights_path'] = 'weights/weights.hdf5'
     params['load_weights'] = True
-    params['train'] = True
+    params['train'] = False
     return params
 
 
@@ -73,8 +76,14 @@ def get_one_hot_vectors(indices, length=5):
 
 
 def run(params):
-    agents = Agents()
-    errors = []
+    agents = DQNAgents(params)
+
+    weights_filepath = params['weights_path']
+    if params['load_weights']:
+        agents.model.load_weights(weights_filepath)
+        print("weights loaded")
+
+    conditions = []
 
     # Iterate over games:
     # i_game = -1
@@ -84,14 +93,14 @@ def run(params):
         game_dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
         print('Game Nr. {}'.format(i_game))
-        print('started at {}'.format(game_dt))
+        # print('started at {}'.format(game_dt))
 
         # Define number of agents randomly in given range
         if params['agent_count_min'] == params['agent_count_max']:
             agent_count = params['agent_count_min']
         else:
             agent_count = np.random.randint(params['agent_count_min'], params['agent_count_max'])
-        print('Number of Agents: {}'.format(agent_count))
+        # print('Number of Agents: {}'.format(agent_count))
 
         # Define size of map randomly in given range
         # If min or max limit parameter is None select a useful limit automatically
@@ -101,7 +110,7 @@ def run(params):
             map_size = np.array([map_size_min, map_size_min])
         else:
             map_size = np.random.randint(map_size_min, map_size_max, 2)
-        print('Size of Arena: {}'.format(map_size))
+        # print('Size of Arena: {}'.format(map_size))
 
         # Create obstacle map randomly if wanted
         obstacle_map = get_random_obstacle_map(map_size) if params['use_obstacles'] else None
@@ -131,16 +140,19 @@ def run(params):
             # print('  - time step: {}'.format(time_step))
 
             if not params['train']:
-                epsilon = 0
+                agents.epsilon = 0
             else:
-                # agent.epsilon is set to give randomness to actions
-                epsilon = 1 - (i_game * params['epsilon_decay_linear'])
+                # agents.epsilon is set to give randomness to actions
+                agents.epsilon = 1 - (i_game * params['epsilon_decay_linear'])
 
             # get old state
             old_states = arena.get_map_for_all_agent()
+
             # perform random actions based on epsilon, or choose the action
             predictions = agents.predict(old_states)
-            actions = np.where(np.random.randint(1, size=(agent_count, 1)) < epsilon,  # Choose randomly between ...
+            random_choise = np.random.randint(2, size=(agent_count, 1)) < agents.epsilon
+            # print('  - {} -> {}'.format(agents.epsilon, ['R' if r else 'P' for r in random_choise]))
+            actions = np.where(random_choise,  # Choose randomly between ...
                                get_one_hot_vectors(np.random.randint(5, size=agent_count)),  # random actions and ...
                                get_one_hot_vectors(np.argmax(predictions, axis=1)))  # predicted actions.
 
@@ -151,12 +163,16 @@ def run(params):
             # set reward for the new state
             rewards = arena.get_reward()
 
+            # if not random_choise:
+            #     print('  - {}'.format(predictions[:, np.argmax(actions)]))
+            #     print('  - {}'.format(rewards))
+
             if params['train']:
                 # train short memory base on the new action and state
                 agents.train_short_memory(old_states, actions, rewards, new_states, arena.get_agents_conditions())
                 # store the new data into a long term memory
                 agents.remember(old_states, actions, rewards, new_states, arena.get_agents_conditions())
-            #losses_sum += agents.train(y_pred=pred_rewards, y_true=true_rewards)
+            # losses_sum += agents.train(y_pred=pred_rewards, y_true=true_rewards)
 
             if params['train']:
                 agents.replay_new(agents.memory, params['batch_size'])
@@ -169,19 +185,27 @@ def run(params):
             # Save image
             # arena.plot_overview(save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
 
-
-        error = losses_sum / (time_step + 1)
-        errors.append(error)
+        conditions.append(arena.get_agents_conditions())
         print('Time Steps: {}'.format(time_step))
-        print('Error: {}'.format(error))
+        print('agent status: {}'.format(arena.get_agents_conditions()))
+        if 'a' in arena.get_agents_conditions():
+            print('  => AIM ACHIEVED!')
+        # print('Error: {}'.format(error))
         print()
 
         if i_game % 10 == 9:
-            arena.plot_overview(save_as=os.path.join('img', '{}_game_{}_time_{}.png'.format(game_dt,
-                                                                                            i_game,
-                                                                                            time_step)))
+            # arena.plot_overview(save_as=os.path.join('img', '{}_game_{}_time_{}.png'.format(game_dt,
+            #                                                                                 i_game,
+            #                                                                                 time_step)))
+            if params['train']:
+                agents.model.save_weights(params['weights_path'])
 
-    plt.plot(errors)
+    conditions = np.reshape(conditions, -1)
+    count_aims = np.count_nonzero(conditions == 'a')
+    print('=======================')
+    print('Count Aims Achieved: {}'.format(count_aims))
+
+    # plt.plot(errors)
 
 
 if __name__ == '__main__':
@@ -192,10 +216,10 @@ if __name__ == '__main__':
 
     # Run the simplest version:
     parameters = define_parameters()
-    parameters['agent_count_min'] = 10
-    parameters['agent_count_max'] = 10
-    parameters['map_size_min'] = 25
-    parameters['map_size_max'] = 25
+    parameters['agent_count_min'] = 1
+    parameters['agent_count_max'] = 1
+    parameters['map_size_min'] = 5
+    parameters['map_size_max'] = 5
     parameters['use_obstacles'] = False
     run(parameters)
 

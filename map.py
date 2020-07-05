@@ -325,7 +325,11 @@ class Map:
 
     def get_reward(self):
         condition_list = [self.get_agents_conditions() == c for c in ['a', 's', '3']]
-        return np.select(condition_list, [100, -100, -80], 0)
+        curr_pos = self.get_positions(layer='c')
+        aim_pos = self.get_positions(layer='a')
+        distances_to_aims = np.linalg.norm(curr_pos - aim_pos, axis=1)
+        dist_func = 1 / (2 * distances_to_aims + 1) + 0.5
+        return np.select(condition_list, [1, 0, 0.2], dist_func)
 
     def is_anyone_still_moving(self):
         return np.any(np.invert(np.isin(self.get_agents_conditions(), ['a', 's', '3'])))
