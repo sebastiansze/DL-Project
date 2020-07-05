@@ -16,16 +16,16 @@ from map import Map, print_layers
 def define_parameters():
     params = dict()
     params['epsilon_decay_linear'] = 1 / 75
-    params['learning_rate'] = 0.05  # 0.0005
+    params['learning_rate'] = 0.005  # 0.0005
     params['first_layer_size'] = 50  # neurons in the first layer
     params['second_layer_size'] = 50  # neurons in the second layer
     params['third_layer_size'] = 50  # neurons in the third layer
-    params['episodes'] = 150
+    params['episodes'] = 1000
     params['memory_size'] = 2500
     params['batch_size'] = 500
     params['weights_path'] = 'weights/weights.hdf5'
     params['load_weights'] = True
-    params['train'] = False
+    params['train'] = True
     return params
 
 
@@ -84,12 +84,12 @@ def run(params):
         print("weights loaded")
 
     conditions = []
+    errors = []
 
     # Iterate over games:
-    # i_game = -1
-
-    for i_game in range(200):
-        # i_game += 1
+    i_game = -1
+    while i_game < params['episodes']:
+        i_game += 1
         game_dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
         print('Game Nr. {}'.format(i_game))
@@ -153,19 +153,23 @@ def run(params):
             random_choise = np.random.randint(2, size=(agent_count, 1)) < agents.epsilon
             # print('  - {} -> {}'.format(agents.epsilon, ['R' if r else 'P' for r in random_choise]))
             actions = np.where(random_choise,  # Choose randomly between ...
-                               get_one_hot_vectors(np.random.randint(5, size=agent_count)),  # random actions and ...
+                               get_one_hot_vectors(np.random.randint(1, 5, size=agent_count)),  # random actions and ...
                                get_one_hot_vectors(np.argmax(predictions, axis=1)))  # predicted actions.
 
+            # remove option to stand still
+            actions = actions[:, 1:5]
+
             # perform new move and get new states
-            arena.move_agents(actions)
+            arena.move_agents(np.concatenate([np.zeros((agent_count, 1)), actions], axis=1))
             new_states = arena.get_map_for_all_agent()
 
             # set reward for the new state
             rewards = arena.get_reward()
 
-            # if not random_choise:
-            #     print('  - {}'.format(predictions[:, np.argmax(actions)]))
-            #     print('  - {}'.format(rewards))
+            if not random_choise:
+                error = np.absolute(predictions[:, np.argmax(actions)] - rewards)
+                print('  - error: {}'.format(error))
+                errors = np.concatenate([errors, error])
 
             if params['train']:
                 # train short memory base on the new action and state
@@ -205,7 +209,7 @@ def run(params):
     print('=======================')
     print('Count Aims Achieved: {}'.format(count_aims))
 
-    # plt.plot(errors)
+    plt.plot(errors)
 
 
 if __name__ == '__main__':

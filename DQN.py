@@ -1,4 +1,4 @@
-from keras.optimizers import Adam
+from keras.optimizers import Adam, SGD
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout
 import random
@@ -32,11 +32,11 @@ class DQNAgents(object):
 
     def network(self):
         model = Sequential()
-        model.add(Dense(self.first_layer, activation='relu', input_dim=4))
-        model.add(Dense(self.second_layer, activation='relu'))
-        model.add(Dense(self.third_layer, activation='relu'))
-        model.add(Dense(5, activation='relu'))  # softmax  # TODO: Warum?
-        opt = Adam(self.learning_rate)
+        model.add(Dense(self.first_layer, activation='sigmoid', input_dim=4))
+        model.add(Dense(self.second_layer, activation='sigmoid'))
+        model.add(Dense(self.third_layer, activation='sigmoid'))
+        model.add(Dense(4, activation='sigmoid'))  # softmax  # TODO: Warum?
+        opt = SGD(self.learning_rate)  # Adam
         model.compile(loss='mse', optimizer=opt)
 
         if self.load_weights:
