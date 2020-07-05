@@ -149,7 +149,7 @@ def run(params):
             new_states = arena.get_map_for_all_agent()
 
             # set reward for the new state
-            rewards = get_truth_reward(arena.get_agents_next_states_min_distances())
+            rewards = arena.get_reward()
 
             if params['train']:
                 # train short memory base on the new action and state

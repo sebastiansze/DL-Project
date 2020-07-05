@@ -323,6 +323,10 @@ class Map:
 
         return distances
 
+    def get_reward(self):
+        condition_list = [self.get_agents_conditions() == c for c in ['a', 's', '3']]
+        return np.select(condition_list, [100, -100, -80], 0)
+
     def is_anyone_still_moving(self):
         return np.any(np.invert(np.isin(self.get_agents_conditions(), ['a', 's', '3'])))
 

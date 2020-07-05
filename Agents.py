@@ -27,25 +27,25 @@ class Agents:
         self.net.train()
         tr_loss = 0
 
-        for y_p, y_t in zip(y_pred, y_true):
+        y_pred = torch.from_numpy(y_pred.astype('float32'))
+        y_pred.requires_grad = True
 
-            # y_p.requires_grad = True
-            y_t = torch.from_numpy(y_t)
-            y_t.requires_grad = True
+        y_true = torch.from_numpy(y_true)
+        y_true.requires_grad = True
 
-            # converting the data into GPU format
-            if torch.cuda.is_available():
-                y_p = y_p.cuda()
-                y_t = y_t.cuda()
+        # converting the data into GPU format
+        if torch.cuda.is_available():
+            y_pred = y_pred.cuda()
+            y_true = y_true.cuda()
 
-            # computing the training and validation loss
-            loss = self.loss_function(y_p, y_t)
+        # computing the training and validation loss
+        loss = self.loss_function(y_pred, y_true)
 
-            # computing the updated weights of all the model parameters
-            loss.backward()
-            self.optimizer.step()
+        # computing the updated weights of all the model parameters
+        loss.backward()
+        self.optimizer.step()
 
-            return loss.item()
+        return loss.item()
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
@@ -74,9 +74,9 @@ class Agents:
         :return:
         """
 
-        targets = np.where(np.expand_dims(np.isin(conditions, ['a', 's', '3']), 1),
+        targets = np.where(np.isin(conditions, ['a', 's', '3']),
                            rewards,
                            rewards + self.gamma * np.amax(self.predict(new_states)))
         target_f = self.predict(old_states)
         target_f[:, np.argmax(actions)] = targets
-        self.model.fit(old_states.reshape((1, 11)), target_f, epochs=1, verbose=0)
+        self.train(old_states, target_f)
