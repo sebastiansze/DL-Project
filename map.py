@@ -53,13 +53,13 @@ class Map:
                 raise ValueError('board size is to small')
 
             # Create layer array of type char to filter the map
-            self._layers = np.array([0, 'o'], dtype=np.dtype('U1'))  # obstacles
+            self._layers = np.array([0, 'o'], dtype=np.dtype('U3'))  # obstacles
             for p in range(agent_count):
                 unstacked_layers = [self._layers,
-                                    np.array([p + 1, 'a'], dtype=np.dtype('U1')),  # aim position
-                                    np.array([p + 1, 'c'], dtype=np.dtype('U1'))]  # current position
+                                    np.array([p + 1, 'a'], dtype=np.dtype('U3')),  # aim position
+                                    np.array([p + 1, 'c'], dtype=np.dtype('U3'))]  # current position
                 if next_step:
-                    unstacked_layers.append(np.array([p + 1, 'n'], dtype=np.dtype('U1')))  # next position
+                    unstacked_layers.append(np.array([p + 1, 'n'], dtype=np.dtype('U3')))  # next position
                 self._layers = np.vstack(unstacked_layers)  # shape: (obstacle+agent_count*(aim+current[+ next]), 2)
                 # -> 2 for two filters: agents and layers
 
@@ -95,7 +95,7 @@ class Map:
         return np.array(agent_filter) & np.array(layer_filter)
 
     def _generate_layers_from_positions(self, positions):
-        positions = np.concatenate([np.expand_dims(np.arange(self._agent_count), 1), positions], 1)
+        positions = np.concatenate([np.expand_dims(np.arange(self._agent_count), 1), positions], 1, ).astype('int64')
         layers = np.zeros((self._agent_count, self._size_x, self._size_y), dtype=bool)
         layers[positions[:, 0], positions[:, 1], positions[:, 2]] = [True for _ in range(self._agent_count)]
         return layers
@@ -193,6 +193,7 @@ class Map:
         a_c_n_pos = self._map[self._layer_filter(agent=agent)]
         others_cp = np.any(self._map[self._layer_filter(layer='c')], axis=0)  # current positions of other agents
         others_cp = others_cp & ~self._map[self._layer_filter(agent=agent, layer='c')]  # subtract own current position
+
         # TODO: field of view
         # others_cp = others_cp & ...
         agent_map = np.concatenate((obstacles, a_c_n_pos, others_cp))
@@ -205,6 +206,9 @@ class Map:
             agent_map = np.concatenate((agent_map, others_np))
 
         return agent_map
+
+    def get_map_for_all_agent(self, view_field=None):
+        return np.stack([self.get_map_for_agent(agent=i, view_filed=view_field) for i in range(self._agent_count)])
 
     def get_danger_zone_map(self, agent=None, desired_pos_maps=None, include_obstacles=False):
         """
@@ -341,7 +345,7 @@ class Map:
                          [1, 0],
                          [0, -1]]
         offset = np.matmul(commands, offset_kernel)
-        desired_pos_coord = old_pos_coord + offset
+        desired_pos_coord = (old_pos_coord + offset).astype('int64')
 
         # If an agent has reached its destination or has had an accident, it is not allowed to predict on
         allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agents_conditions, ['a', 's', '3']), axis=1),
@@ -403,7 +407,7 @@ class Map:
         ax.add_patch(border)
 
     def _get_plot_color(self, agent_index, next_step=False):
-        hue = 1.0 / self._agent_count * agent_index + self._color_hue_offset
+        hue = agent_index / self._agent_count + self._color_hue_offset
         saturation = 1.0 if not next_step else 0.1
         value = 0.7 if not next_step else 0.9
         return colorsys.hsv_to_rgb(hue, saturation, value)
