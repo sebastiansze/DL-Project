@@ -10,7 +10,9 @@ import collections
 
 class DQNAgents(object):
     def __init__(self, params):
-        self._map_size = [5, 5]
+        self._map_size_max = [params['map_size_max'], params['map_size_max']]
+        self._max_possible_dist = np.sqrt(np.sum(np.square(self._map_size_max)))
+        self._time_step_max = params['time_step_max']
 
         self.reward = 0
         self.gamma = 0.9
@@ -18,7 +20,7 @@ class DQNAgents(object):
         self.short_memory = np.array([])
         self.agent_target = 1
         self.agent_predict = 0
-        self.learning_rate = params['learning_rate']        
+        self.learning_rate = params['learning_rate']
         self.epsilon = 1
         self.actual = []
         self.first_layer = params['first_layer_size']
@@ -32,10 +34,10 @@ class DQNAgents(object):
 
     def network(self):
         model = Sequential()
-        model.add(Dense(self.first_layer, activation='sigmoid', input_dim=4))
-        model.add(Dense(self.second_layer, activation='sigmoid'))
-        model.add(Dense(self.third_layer, activation='sigmoid'))
-        model.add(Dense(4, activation='sigmoid'))  # softmax  # TODO: Warum?
+        model.add(Dense(self.first_layer, activation='relu', input_dim=5))
+        model.add(Dense(self.second_layer, activation='relu'))
+        model.add(Dense(self.third_layer, activation='relu'))
+        model.add(Dense(4, activation='softmax'))  # softmax  # TODO: Warum?
         opt = SGD(self.learning_rate)  # Adam
         model.compile(loss='mse', optimizer=opt)
 
@@ -43,21 +45,33 @@ class DQNAgents(object):
             model.load_weights(self.weights)
         return model
 
-    def prepare_model_input(self, x):
-        obstacle_maps = x[:, 0]
-        own_current_positions_coordinates = np.argwhere(x[:, 1])[:, 1:3] / self._map_size  # normalize coordinates
-        own_aim_positions_coordinates = np.argwhere(x[:, 2])[:, 1:3] / self._map_size  # normalize coordinates
-        others_current_positions_maps = x[:, 3]
+    def get_reward(self, conditions, distances_to_aims):
+        condition_list = [conditions == c for c in ['a', 's', '3', 't']]
+        choice_list = [+2 * self._max_possible_dist,  # aim
+                       -2 * self._max_possible_dist,  # self inflicted accident
+                       -1 * self._max_possible_dist,  # third-party fault accident
+                       -1 * self._max_possible_dist]  # time out
+        # dist_func = 1 / (2 * distances_to_aims + 1) + 0.5
+        # return np.select(condition_list, [1, 0, 0.2], dist_func)
+        dist_func = self._max_possible_dist - distances_to_aims
+        return np.select(condition_list, choice_list, dist_func)
 
-        output = np.concatenate([own_current_positions_coordinates, own_aim_positions_coordinates], axis=1)
+    def prepare_model_input(self, x, time_steps):
+        obstacle_maps = x[:, 0]
+        own_current_positions_coordinates = np.argwhere(x[:, 1])[:, 1:3] / self._map_size_max  # normalize coordinates
+        own_aim_positions_coordinates = np.argwhere(x[:, 2])[:, 1:3] / self._map_size_max  # normalize coordinates
+        others_current_positions_maps = x[:, 3]
+        ts = time_steps / self._time_step_max
+        output = np.concatenate([own_current_positions_coordinates, own_aim_positions_coordinates, ts], axis=1)
         return output
 
-    def predict(self, x):
-        return self.model.predict(self.prepare_model_input(x))
+    def predict(self, x, time_step):
+        return self.model.predict(self.prepare_model_input(x, time_step))
 
-    def remember(self, old_states, actions, rewards, new_states, conditions):
-        for o_state, action, reward, n_state, condition in zip(old_states, actions, rewards, new_states, conditions):
-            self.memory.append((o_state, action, reward, n_state, condition))
+    def remember(self, old_states, time_steps, actions, rewards, new_states, conditions):
+        for o_state, ts, action, reward, n_state, condition in zip(old_states, time_steps, actions, rewards,
+                                                                   new_states, conditions):
+            self.memory.append((o_state, ts, action, reward, n_state, condition))
 
     def replay_new(self, memory, batch_size):
         if len(memory) > batch_size:
@@ -66,27 +80,31 @@ class DQNAgents(object):
             mini_batch = memory
 
         old_states = []
+        time_steps = []
         actions = []
         rewards = []
         new_states = []
         conditions = []
-        for o_state, action, reward, n_state, condition in mini_batch:
+        for o_state, ts, action, reward, n_state, condition in mini_batch:
             old_states.append(o_state)
+            time_steps.append(ts)
             actions.append(action)
             rewards.append(reward)
             new_states.append(n_state)
             conditions.append(condition)
 
         self.train_short_memory(np.array(old_states),
+                                np.array(time_steps),
                                 np.array(actions),
                                 np.array(rewards),
                                 np.array(new_states),
                                 np.array(conditions))
 
-    def train_short_memory(self, old_states, actions, rewards, new_states, conditions):
+    def train_short_memory(self, old_states, time_steps, actions, rewards, new_states, conditions):
         """
 
         :param old_states: shape: [agent_count, 4, size_x, size_y]
+        :param time_steps:
         :param actions: shape: [agent_count, 5]
         :param rewards: shape: [agent_count, 5]
         :param new_states: shape: [agent_count, 4, size_x, size_y]
@@ -94,11 +112,11 @@ class DQNAgents(object):
         :return:
         """
 
-        targets = np.where(np.isin(conditions, ['a', 's', '3']),
+        targets = np.where(np.isin(conditions, ['a', 's', '3', 't']),
                            rewards,
-                           rewards + self.gamma * np.amax(self.predict(new_states)))
-        target_f = self.predict(old_states)
-        target_f[:, np.argmax(actions)] = targets
+                           rewards + self.gamma * np.amax(self.predict(new_states, time_steps + 1)))
+        target_f = self.predict(old_states, time_steps)
+        target_f[np.arange(target_f.shape[0]), np.argmax(actions, axis=1)] = targets
         # print('  - {}'.format(target_f))
 
-        self.model.fit(self.prepare_model_input(old_states), target_f, epochs=1, verbose=0)
+        self.model.fit(self.prepare_model_input(old_states, time_steps), target_f, epochs=1, verbose=0)

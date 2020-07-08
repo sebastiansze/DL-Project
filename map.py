@@ -34,7 +34,8 @@ def print_layers(layers, fill='\u2590\u2588\u258C'):
 
 
 class Map:
-    def __init__(self, size_x, size_y, agent_count=1, obstacle_map=None, next_step=False, load_from_file=None):
+    def __init__(self, size_x, size_y, time_step_max, agent_count=1,
+                 obstacle_map=None, next_step=False, load_from_file=None):
         if load_from_file:
             f = open(load_from_file, 'rb')
             tmp_dict = pickle.load(f)
@@ -43,6 +44,7 @@ class Map:
         else:
             self._size_x = size_x
             self._size_y = size_y
+            self._time_step_max = time_step_max
             self._agent_count = agent_count
             self._next_step = next_step
 
@@ -80,7 +82,8 @@ class Map:
             self._hist = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
             self._hist_next = np.zeros((0, agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
 
-            # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s) 'third-party fault accident' (3)
+            # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s), 'third-party fault accident' (3)
+            # and 'time out' (t)
             self._agents_conditions = np.zeros(agent_count, dtype=np.dtype('U1'))
             self._agents_duration = np.zeros(agent_count)
             self._agents_distance = np.zeros(agent_count)
@@ -275,6 +278,9 @@ class Map:
     def get_agents_distances_since_start(self):
         return self._agents_distance
 
+    def get_distances_to_aims(self):
+        return np.linalg.norm(self.get_positions(layer='c') - self.get_positions(layer='a'), axis=1)
+
     def get_agents_next_states_min_distances(self):
         """
         Get an numpy array with shape [agent_count, 5, 3] that includes the euclidean distances to
@@ -323,16 +329,8 @@ class Map:
 
         return distances
 
-    def get_reward(self):
-        condition_list = [self.get_agents_conditions() == c for c in ['a', 's', '3']]
-        curr_pos = self.get_positions(layer='c')
-        aim_pos = self.get_positions(layer='a')
-        distances_to_aims = np.linalg.norm(curr_pos - aim_pos, axis=1)
-        dist_func = 1 / (2 * distances_to_aims + 1) + 0.5
-        return np.select(condition_list, [1, 0, 0.2], dist_func)
-
     def is_anyone_still_moving(self):
-        return np.any(np.invert(np.isin(self.get_agents_conditions(), ['a', 's', '3'])))
+        return np.any(np.invert(np.isin(self.get_agents_conditions(), ['a', 's', '3', 't'])))
 
     def move_agents(self, commands):
         """
@@ -343,6 +341,13 @@ class Map:
         :return: boolean array with shape (agent_count, 1) with True if the command is valid for this agent and
         False if there was an accident.
         """
+
+        # handle time out
+        self._agents_conditions = np.where(np.isin(self.get_agents_conditions(), ['a', 's', '3', 't']),
+                                           self._agents_conditions,
+                                           np.where(self._agents_duration > self._time_step_max,
+                                                    't',
+                                                    self._agents_conditions))
 
         old_pos_coord = self.get_positions(layer='c')
 
@@ -356,7 +361,7 @@ class Map:
         desired_pos_coord = (old_pos_coord + offset).astype('int64')
 
         # If an agent has reached its destination or has had an accident, it is not allowed to predict on
-        allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agents_conditions, ['a', 's', '3']), axis=1),
+        allowed_pos_coord = np.where(np.expand_dims(np.isin(self._agents_conditions, ['a', 's', '3', 't']), axis=1),
                                      old_pos_coord, desired_pos_coord)
 
         # Check whether an agent has already left the map
@@ -394,9 +399,8 @@ class Map:
         self._agents_conditions = np.where(accident, 's', self._agents_conditions)  # 'self inflicted accident' (s)
         # TODO: # 'third-party fault accident' (3)
         self._agents_conditions = np.where(goal_achieved, 'a', self._agents_conditions)
-
         # Update duration and distance
-        self._agents_duration = np.where(np.isin(self.get_agents_conditions(), ['a', 's', '3']),
+        self._agents_duration = np.where(np.isin(self.get_agents_conditions(), ['a', 's', '3', 't']),
                                          self._agents_duration, self._agents_duration + 1)
         self._agents_distance = np.where(np.all(allowed_pos_coord == old_pos_coord, axis=1),
                                          self._agents_distance, self._agents_distance + 1)
@@ -479,7 +483,7 @@ class Map:
 
             # Plot agent status
             if plot_agent_status:
-                for status, symbol in zip(['a', 's', '3'], ['\u2713', '\u2717', '\u2717']):  # \u2620
+                for status, symbol in zip(['a', 's', '3', 't'], ['\u2713', '\u2717', '\u2717', '\u2717']):  # \u2620
                     if self._agents_conditions[i_agent] == status:
                         for y, x in self.get_positions(agent=i_agent, layer='c'):
                             x = x + 0.2
