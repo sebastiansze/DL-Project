@@ -181,12 +181,12 @@ class Map:
         """
         return copy.deepcopy(self._map[self._layer_filter(agent, layer)])
 
-    def get_map_for_agent(self, agent, view_filed=None):
+    def get_map_for_agent(self, agent, view_field=None):
         """
         Get map for agent X's point of view including: obstacles, own aim position,
         own current position (, own next position), others current position (, others next position).
         :param agent: number of agent
-        :param view_filed: size of view field
+        :param view_field: size of view field
         :return: map as boolean array with shape [4 or 6, size_x, size_y]
         """
         obstacles = self._map[self._layer_filter(layer='o')]
@@ -270,6 +270,9 @@ class Map:
 
     def get_agents_distances_since_start(self):
         return self._agents_distance
+
+    def get_distances_to_aims(self):
+        return np.linalg.norm(self.get_positions(layer='c') - self.get_positions(layer='a'), axis=1)
 
     def get_agents_next_states_min_distances(self):
         """
