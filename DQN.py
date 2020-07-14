@@ -1,15 +1,12 @@
-
-
 import os
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import torch as T
-import imageio
 
 
 class DuelingLinearDeepQNetwork(nn.Module):
-    def __init__(self, ALPHA, n_actions, name, input_dims, chkpt_dir=''):
+    def __init__(self, alpha, n_actions, name, input_dims, chkpt_dir=''):
         super(DuelingLinearDeepQNetwork, self).__init__()
 
         self.fc1 = nn.Linear(*input_dims, 256)
@@ -22,9 +19,9 @@ class DuelingLinearDeepQNetwork(nn.Module):
         self.preA = nn.Linear(256, 128)
         self.A = nn.Linear(128, n_actions)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=ALPHA)
+        self.optimizer = optim.Adam(self.parameters(), lr=alpha)
         self.loss = nn.MSELoss()
-        self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
+        self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
         self.checkpoint_dir = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_dir, name + '_dqn')

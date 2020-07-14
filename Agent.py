@@ -3,7 +3,9 @@ import numpy as np
 from ReplayBuffer import ReplayBuffer
 import torch as T
 
-class Agent():
+
+class Agent:
+
     def __init__(self, gamma, epsilon, lr, n_actions, input_dims,
                  mem_size, batch_size, eps_min=0.01, eps_dec=5e-7,
                  replace=1000, chkpt_dir=''):
@@ -22,19 +24,15 @@ class Agent():
 
         self.memory = ReplayBuffer(mem_size, input_dims)
 
-        self.q_eval = DuelingLinearDeepQNetwork(self.lr, self.n_actions,
-                                   input_dims=self.input_dims,
-                                   name='model',
-                                   chkpt_dir=self.chkpt_dir)
+        self.q_eval = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims, name='model',
+                                                chkpt_dir=self.chkpt_dir)
 
-        self.q_next = DuelingLinearDeepQNetwork(self.lr, self.n_actions,
-                                   input_dims=self.input_dims,
-                                   name='model_next',
-                                   chkpt_dir=self.chkpt_dir)
+        self.q_next = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims, name='model_next',
+                                                chkpt_dir=self.chkpt_dir)
 
     def choose_action(self, observation):
         if np.random.random() > self.epsilon:
-            state = T.tensor([observation],dtype=T.float).to(self.q_eval.device)
+            state = T.tensor([observation], dtype=T.float).to(self.q_eval.device)
             _, advantage = self.q_eval.forward(state)
             action = T.argmax(advantage).item()
         else:
@@ -57,7 +55,6 @@ class Agent():
         self.q_eval.save_checkpoint()
         self.q_next.save_checkpoint()
 
-
     def load_models(self):
         self.q_eval.load_checkpoint()
         self.q_next.load_checkpoint()
@@ -70,8 +67,7 @@ class Agent():
 
         self.replace_target_network()
 
-        state, action, reward, new_state, done = \
-                                self.memory.sample_buffer(self.batch_size)
+        state, action, reward, new_state, done = self.memory.sample_buffer(self.batch_size)
 
         states = T.tensor(state).to(self.q_eval.device)
         rewards = T.tensor(reward).to(self.q_eval.device)
@@ -87,11 +83,11 @@ class Agent():
         V_s_eval, A_s_eval = self.q_eval.forward(states_)
 
         q_pred = T.add(V_s,
-                        (A_s - A_s.mean(dim=1, keepdim=True)))[indices, actions]
+                       (A_s - A_s.mean(dim=1, keepdim=True)))[indices, actions]
         q_next = T.add(V_s_,
-                        (A_s_ - A_s_.mean(dim=1, keepdim=True)))
+                       (A_s_ - A_s_.mean(dim=1, keepdim=True)))
 
-        q_eval = T.add(V_s_eval, (A_s_eval - A_s_eval.mean(dim=1,keepdim=True)))
+        q_eval = T.add(V_s_eval, (A_s_eval - A_s_eval.mean(dim=1, keepdim=True)))
 
         max_actions = T.argmax(q_eval, dim=1)
 
