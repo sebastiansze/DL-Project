@@ -17,7 +17,7 @@ def play():
     pass
 
 
-def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
+def train(n_games=1000, env_size=(15, 15), timeout=60, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -46,7 +46,7 @@ def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
             time_step += 1
 
             action = agent.choose_action(observation)
-            observation_, reward, done = env.step(action)
+            next_observation, reward, done = env.step(action)
             if reward == MAX_REWARD:
                 reached += 1
                 if i_game > (n_games - 100):
@@ -54,12 +54,12 @@ def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
 
             score += reward
             agent.store_transition(observation, action,
-                                   reward, observation_, int(done))
+                                   reward, next_observation, int(done))
 
             agent.learn()
-            observation = observation_
+            observation = next_observation
 
-            game_sav.append(observation_)
+            game_sav.append(next_observation)
             eps_history.append(agent.epsilon)
 
             ddqn_scores.append(score)
