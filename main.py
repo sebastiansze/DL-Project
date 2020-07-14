@@ -12,10 +12,12 @@ from visualisation import Helpers
 
 MAX_REWARD = 20000
 
+
 def play():
     pass
 
-def train(epochs=100,  env_size=(15,15), iter_timeout=60, resume=False):
+
+def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -32,22 +34,22 @@ def train(epochs=100,  env_size=(15,15), iter_timeout=60, resume=False):
         agent.load_models()
 
     # Main training loop
-    for epoch in tqdm(range(epochs)):
+    for i_game in tqdm(range(n_games)):
         score = 0
         avg_score = 0
         done = False
         env = Game.random(env_size, MAX_REWARD)
         observation = env.reset()
         game_sav = []
-        iteration = 0
+        time_step = 0
         while not done:
-            iteration += 1
+            time_step += 1
 
             action = agent.choose_action(observation)
             observation_, reward, done = env.step(action)
             if reward == MAX_REWARD:
                 reached += 1
-                if epoch > (epochs - 100):
+                if i_game > (n_games - 100):
                     reached_last_100 += 1
 
             score += reward
@@ -62,36 +64,36 @@ def train(epochs=100,  env_size=(15,15), iter_timeout=60, resume=False):
 
             ddqn_scores.append(score)
 
-            if iteration == iter_timeout:
+            if time_step == timeout:
                 done = True
 
-            if epoch > 0 and epoch % 10 == 0:
+            if i_game > 0 and i_game % 10 == 0:
                 agent.save_models()
 
-            if done and epoch > 20:
+            if done and i_game > 20:
                 avg_score = np.mean(ddqn_scores[-10])
 
         score_saver.append(score)
-        if epoch > 20:
+        if i_game > 20:
             avg_score_saver.append(avg_score)
-            if epoch % int(epochs / prec) == int(epochs / prec) - 1:
-                print('episode: ', epoch, 'score: %.2f' % score,
+            if i_game % int(n_games / prec) == int(n_games / prec) - 1:
+                print('episode: ', i_game, 'score: %.2f' % score,
                       ' average score %.2f' % avg_score,
                       'Epsilon %.3f' % agent.epsilon,
                       'Erreicht: ' + str(reached))
         saved_games.append(game_sav)
 
 
-    # What was this supposed to do? Definitely does not work like this!
 
+    print("")
+    print(str(n_games) + " Spieldurchläufe: " + str(reached) + " mal Ziel erreicht, Quote = " + str(reached / n_games))
+    print("Quote der letzten 100 Durchläufe " + str(reached_last_100 / 100))
+    plt.plot(score_saver)
+    plt.show()
+    plt.plot(avg_score_saver)
+    plt.show()
+    # What was this supposed to do? Definitely does not work like this!
     # helper = Helpers(env)
-    # print("")
-    # print(str(epochs) + " Spieldurchläufe: " + str(reached) + " mal Ziel erreicht, Quote = " + str(reached / epochs))
-    # print("Quote der letzten 100 Durchläufe " + str(reached_last_100 / 100))
-    # plt.plot(score_saver)
-    # plt.show()
-    # plt.plot(avg_score_saver)
-    # plt.show()
     # randomgame = np.random.randint(1,20)
     # print(randomgame)
     #

@@ -61,7 +61,7 @@ class Game:
 
         observ = self.create_map().reshape(self.board_size[0] * self.board_size[1])
 
-        reward, done = self.get_reward_for_position(Point(self.board_size[0], self.board_size[1]))
+        reward, done = self.get_reward_for_position(self.player_pos)
 
         return observ, reward, done
 
