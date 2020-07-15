@@ -2,13 +2,15 @@ from DQN import DuelingLinearDeepQNetwork
 import numpy as np
 from ReplayBuffer import ReplayBuffer
 import torch as T
+import os
 
 
 class Agent:
 
-    def __init__(self, gamma, epsilon, lr, n_actions, input_dims,
+    def __init__(self, id_, gamma, epsilon, lr, n_actions, input_dims,
                  mem_size, batch_size, eps_min=0.01, eps_dec=5e-7,
-                 replace=1000, chkpt_dir=''):
+                 replace=1000, chkpt_dir='./models'):
+        self.id = id_
         self.gamma = gamma
         self.epsilon = epsilon
         self.lr = lr
@@ -18,17 +20,16 @@ class Agent:
         self.eps_min = eps_min
         self.eps_dec = eps_dec
         self.replace_target_cnt = replace
+        os.makedirs(chkpt_dir, exist_ok=True)
         self.chkpt_dir = chkpt_dir
         self.action_space = [i for i in range(self.n_actions)]
         self.learn_step_counter = 0
 
         self.memory = ReplayBuffer(mem_size, input_dims)
 
-        self.q_eval = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims, name='model',
-                                                chkpt_dir=self.chkpt_dir)
+        self.q_eval = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims)
 
-        self.q_next = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims, name='model_next',
-                                                chkpt_dir=self.chkpt_dir)
+        self.q_next = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims)
 
     def choose_action(self, observation):
         if np.random.random() > self.epsilon:
@@ -52,12 +53,12 @@ class Agent:
                         if self.epsilon > self.eps_min else self.eps_min
 
     def save_models(self):
-        self.q_eval.save_checkpoint()
-        self.q_next.save_checkpoint()
+        self.q_eval.save_checkpoint(os.path.join(self.chkpt_dir, f"{self.id}_dqn_model"))
+        self.q_next.save_checkpoint(os.path.join(self.chkpt_dir, f"{self.id}_dqn_model_next"))
 
     def load_models(self):
-        self.q_eval.load_checkpoint()
-        self.q_next.load_checkpoint()
+        self.q_eval.load_checkpoint(os.path.join(self.chkpt_dir, f"{self.id}_dqn_model"))
+        self.q_next.load_checkpoint(os.path.join(self.chkpt_dir, f"{self.id}_dqn_model_next"))
 
     def learn(self):
         if self.memory.mem_cntr < self.batch_size:

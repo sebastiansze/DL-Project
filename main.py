@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 # import seaborn as sns
 import warnings
+
 warnings.filterwarnings("ignore", category=UserWarning)
 from Agent import Agent
 from GameLogic import Game, Point
@@ -17,89 +18,98 @@ def play():
     pass
 
 
-def train(n_games=1000, env_size=(15, 15), timeout=60, resume=False):
+def train(n_games=1000, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
     eps_history = []
     saved_games = []
     prec = 40
-    reached = 0
-    reached_last_100 = 0
+    reached = np.zeros(n_agents, dtype=np.int32)
+    reached_last_100 = np.zeros(n_agents, dtype=np.int32)
 
-    agent = Agent(gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4, input_dims=[env_size[0] * env_size[1]],
-                  mem_size=100000, batch_size=64, eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
+    agents = []
+    for agent_id in range(n_agents):
+        agent = Agent(f"agent_{agent_id}", gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4,
+                      input_dims=[env_size[0] * env_size[1]], mem_size=100000, batch_size=64,
+                      eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
+        if resume:
+            agent.load_models()
+        agents.append(agent)
 
     num_obstacles = np.random.randint(15, 25)
     obstacles = []
     for i in range(num_obstacles):
         obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
 
-    if resume:
-        agent.load_models()
-
     # Main training loop
     for i_game in tqdm(range(n_games)):
-        score = 0
-        avg_score = 0
-        done = False
-        aim_pos = Point(
-            np.random.randint(6, env_size[0] - 2), np.random.randint(int(env_size[1] / 2 + 2), env_size[1] - 2))
-        player_pos = Point(np.random.randint(2, 4), np.random.randint(2, 5))
-        env = Game(player_pos, aim_pos, obstacles, env_size, MAX_REWARD)
-        observation = env.reset()
+        scores = np.zeros(n_agents)
+        avg_scores = np.zeros(n_agents)
+        agent_in_final_state = np.full(n_agents, False)
+        env = Game(obstacles, None, env_size, MAX_REWARD)
+        for i in range(n_agents):
+            env.add_player()
+        observations = env.reset()
         game_sav = []
         time_step = 0
-        while not done:
+        # Run until all agents reached a final state
+        while not np.all(agent_in_final_state):
             time_step += 1
+            # Obtain actions for each agent
+            actions = []
+            # Get actions from all agents that are not in a final state
+            for agent_id, agent in enumerate(agents):
+                if not agent_in_final_state[agent_id]:
+                    actions.append(agent.choose_action(observations[agent_id]))
+                else:
+                    actions.append(None)
+            # Execute actions on board
+            next_observations, rewards, agent_in_final_state = env.step(actions)
+            # Save history for each agent and optimize
+            for agent, observation, action, reward, next_observation, is_in_final_state in \
+                    zip(agents, observations, actions, rewards, next_observations, agent_in_final_state):
+                # Only store and optimize if the agent did something
+                if action is not None:
+                    agent.store_transition(observation, action, reward, next_observation, int(is_in_final_state))
+                    agent.learn()
 
-            action = agent.choose_action(observation)
-            next_observation, reward, done = env.step(action)
-            if reward == MAX_REWARD:
-                reached += 1
-                if i_game > (n_games - 100):
-                    reached_last_100 += 1
+            for agent_id, action in enumerate(actions):
+                if action is not None and rewards[agent_id] == MAX_REWARD:
+                    reached[agent_id] += 1
+                    if i_game > (n_games - 100):
+                        reached_last_100[agent_id] += 1
 
-            score += reward
-            agent.store_transition(observation, action,
-                                   reward, next_observation, int(done))
-
-            agent.learn()
-            observation = next_observation
-
-            game_sav.append(next_observation)
-            eps_history.append(agent.epsilon)
-
-            ddqn_scores.append(score)
+            scores += rewards
+            observations = next_observations
+            game_sav.append(next_observations)
+            eps_history.append([agent.epsilon for agent in agents])
+            ddqn_scores.append(scores)
 
             if time_step == timeout:
-                done = True
+                agent_in_final_state = np.full(n_agents, True)
 
             if i_game > 0 and i_game % 10 == 0:
-                agent.save_models()
+                for agent in agents:
+                    agent.save_models()
 
-            if done and i_game > 20:
-                avg_score = np.mean(ddqn_scores[-10])
-
-        score_saver.append(score)
+            if all(agent_in_final_state) and i_game > 20:
+                avg_scores = np.mean(ddqn_scores[:-10], axis=0)
+        score_saver.append(scores)
         if i_game > 20:
-            avg_score_saver.append(avg_score)
+            avg_score_saver.append(avg_scores)
+            epsilons = {agent.id : agent.epsilon for agent in agents}
             if i_game % int(n_games / prec) == int(n_games / prec) - 1:
-                print('episode: ', i_game, 'score: %.2f' % score,
-                      ' average score %.2f' % avg_score,
-                      'Epsilon %.3f' % agent.epsilon,
-                      'Erreicht: ' + str(reached))
+                print(f"episode: {i_game} score: {scores.tolist()} average score {avg_scores.tolist()} "
+                      f"epsilon {epsilons} Erreicht: {reached.tolist()}")
         saved_games.append(game_sav)
 
-
-
-    print("")
-    print(str(n_games) + " Spieldurchläufe: " + str(reached) + " mal Ziel erreicht, Quote = " + str(reached / n_games))
-    print("Quote der letzten 100 Durchläufe " + str(reached_last_100 / 100))
-    plt.plot(score_saver)
-    plt.show()
-    plt.plot(avg_score_saver)
-    plt.show()
+    print(f"\n{n_games} Spieldurchläufe: {reached.tolist()} mal Ziel erreicht - Qoute: {(reached / n_games).tolist()}")
+    print("Quote der letzten 100 Durchläufe " + str((reached_last_100 / 100).tolist()))
+    # plt.plot(score_saver)
+    # plt.show()
+    # plt.plot(avg_score_saver)
+    # plt.show()
     # What was this supposed to do? Definitely does not work like this!
     # helper = Helpers(env)
     # randomgame = np.random.randint(1,20)

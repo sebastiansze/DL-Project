@@ -1,5 +1,6 @@
 import numpy as np
 import copy
+from typing import List, Tuple
 
 
 class Point:
@@ -17,62 +18,114 @@ class Point:
         return np.sqrt(np.square(self.x - to.x) + np.square(self.y - to.y))
 
 
+class Player:
+    def __init__(self, start: Point, aim: Point):
+        self.start = copy.deepcopy(start)
+        self.position = start
+        self.aim = aim
+
+    def move(self, action):
+        """
+        :param action: Moves player according to action
+        """
+        if action == 0:
+            self.position.x += 1
+        elif action == 1:
+            self.position.x -= 1
+        elif action == 2:
+            self.position.y += 1
+        elif action == 3:
+            self.position.y -= 1
+
+
 class Game:
-    def __init__(self, start_pos: Point, aim_pos: Point, obstacles, board_size=(10, 10), max_reward=100, safe_dist=3):
-        self.start_pos = copy.deepcopy(start_pos)
-        self.player_pos = start_pos
-        self.aim = aim_pos
+    def __init__(self, obstacles, players: List[Player] = None, board_size=(10, 10), max_reward=100, safe_dist=3):
+        self.players = [] if players is None else players
         self.board_size = board_size
         self.obstacles = obstacles
         self.MAX_REWARD = max_reward
         self.safe_dist = safe_dist
 
+    def add_player(self, start: Point = None, aim: Point = None):
+        """
+        :param start: a Point with the start coordinates, will be generated randomly if None
+        :param aim: a Point with aim coordinates, will be generated randomly if None
+        """
+        if start is None:
+            unique = False
+            occupied_starts = [player.start for player in self.players]
+            while not unique:
+                start = Point(np.random.randint(2, 4), np.random.randint(2, 5))
+                unique = start not in occupied_starts
+
+        if aim is None:
+            unique = False
+            occupied_aims = [player.aim for player in self.players]
+            while not unique:
+                aim = Point(np.random.randint(6, self.board_size[0] - 2),
+                            np.random.randint(int(self.board_size[1] / 2 + 2), self.board_size[1] - 2))
+                unique = aim not in occupied_aims
+
+        self.players.append(Player(start, aim))
+
     @staticmethod
-    def random(env_size=(10, 10), max_reward=100, safe_dist=3):
-        #TODO: Why this range of random values - it's actually a really small variance ?
-        aim_pos = Point(
-            np.random.randint(6, env_size[0] - 2), np.random.randint(int(env_size[1] / 2 + 2), env_size[1] - 2))
-        player_pos = Point(np.random.randint(2, 4), np.random.randint(2, 5))
+    def random(board_size=(10, 10), player_count=1, max_reward=100, safe_dist=3):
+        # TODO: Why this range of random values - it's actually a really small variance ?
         num_obstacles = np.random.randint(15, 25)
         obstacles = []
         for i in range(num_obstacles):
-            obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
-        return Game(player_pos, aim_pos, obstacles, board_size=env_size, max_reward=max_reward, safe_dist=3)
+            obstacles.append(Point(np.random.randint(1, board_size[0]), np.random.randint(1, board_size[1])))
+        game = Game(obstacles, board_size=board_size, max_reward=max_reward, safe_dist=3)
+        for i_player in range(player_count):
+            game.add_player()
+        return game
 
     def reset(self):
-        self.player_pos = self.start_pos
-        return self.create_map().flatten()
+        for player in self.players:
+            player.position = player.start
+        observations = []
+        for player_id in range(len(self.players)):
+            observations.append(self.create_map_for_player_id(player_id).flatten())
+        return observations
 
-    def step(self, action):
-        if action == 0:
-            self.player_pos.x += 1
-        elif action == 1:
-            self.player_pos.x -= 1
-        elif action == 2:
-            self.player_pos.y += 1
-        elif action == 3:
-            self.player_pos.y -= 1
+    def step(self, actions: List[int]) -> Tuple[List[np.ndarray], List[float], List[bool]]:
+        """
+        :param actions: Mapping from player_id to action for that player
+        :return: mapping from player_id to observation, reward, final
+        """
+        if len(actions) != len(self.players):
+            raise RuntimeError(f"Length of actions is not equal to number of players! Expected: {len(self.players)}"
+                               f" but got {len(actions)}")
 
-        observ = self.create_map().flatten()
+        observations = []
+        rewards = []
+        in_final_state = []
+        # First move all players
+        for player_id, action in enumerate(actions):
+            if action is not None:
+                self.players[player_id].move(action)
 
-        reward, done = self.get_reward_for_position(self.player_pos)
+        # Then calculate map and reward for each player
+        for player_id, action in enumerate(actions):
+            reward, final_state = self.get_reward_for_player_id(player_id)
+            observations.append(self.create_map_for_player_id(player_id).flatten())
+            rewards.append(reward)
+            in_final_state.append(final_state)
 
-        return observ, reward, done
+        return observations, rewards, in_final_state
 
-    def create_map(self, plot=False):
-
+    def create_map_for_player_id(self, player_id: int):
         m = np.zeros(self.board_size)
         for ob in self.obstacles:
             m[ob.x, ob.y] = 0.3
-        m[self.aim.x, self.aim.y] = 0.9
-
-        if 0 < self.player_pos.x < self.board_size[0] and \
-                0 < self.player_pos.y < self.board_size[1]:
-            m[self.player_pos.x, self.player_pos.y] = 1
-
-        if plot:
-            plt.imshow(m, cmap='hot', interpolation='nearest')
-            plt.show()
+        for id_, player in enumerate(self.players):
+            if id_ == player_id:
+                if 0 < player.position.x < self.board_size[0] and 0 < player.position.y < self.board_size[1]:
+                    m[player.position.x, player.position.y] = 1
+                m[player.aim.x, player.aim.y] = 0.9
+            else:
+                if 0 < player.position.x < self.board_size[0] and 0 < player.position.y < self.board_size[1]:
+                    m[player.position.x, player.position.y] = 0.4
         return m
 
     def check_bounds(self, p: Point):
@@ -87,18 +140,27 @@ class Game:
         else:
             return 0, False
 
-    def get_reward_for_position(self, pos: Point):
-        reward, done = self.check_bounds(pos)
-        reward -= 300 * pos.distance_to(self.aim) / (self.board_size[1] + self.board_size[0])
-        for ob in self.obstacles:
-            reward -= 1000 * np.exp(-(pos.distance_to(ob) * self.safe_dist))
+    def get_reward_for_player_id(self, player_id: any):
+        player = self.players[player_id]
+        reward, done = self.check_bounds(player.position)
+        reward -= 300 * player.position.distance_to(player.aim) / (self.board_size[1] + self.board_size[0])
 
+        # reduce reward if we get close to / collide with an obstacle
+        for ob in self.obstacles:
+            reward -= 1000 * np.exp(-(player.position.distance_to(ob) * self.safe_dist))
+
+        # reduce reward if we get close to / collide with another player
+        for player_b_id, player_b in enumerate(self.players):
+            if player_b_id != player_id:
+                reward -= 1000 * np.exp(-(player.position.distance_to(player_b.position) * self.safe_dist))
+
+        # Penalize being close to the board borders
         edge_control = 600
-        if pos.x == 0 or pos.x == self.board_size[0] - 1:
+        if player.position.x == 0 or player.position.x == self.board_size[0] - 1:
             reward -= edge_control
-        if pos.y == 0 or pos.y == self.board_size[1] - 1:
+        if player.position.y == 0 or player.position.y == self.board_size[1] - 1:
             reward -= edge_control
-        if pos == self.aim:
+        if player.position == player.aim:
             reward = self.MAX_REWARD
             done = True
         return reward, done
