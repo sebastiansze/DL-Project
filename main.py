@@ -30,6 +30,11 @@ def train(n_games=1000, env_size=(15, 15), timeout=60, resume=False):
     agent = Agent(gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4, input_dims=[env_size[0] * env_size[1]],
                   mem_size=100000, batch_size=64, eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
 
+    num_obstacles = np.random.randint(15, 25)
+    obstacles = []
+    for i in range(num_obstacles):
+        obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
+
     if resume:
         agent.load_models()
 
@@ -38,7 +43,10 @@ def train(n_games=1000, env_size=(15, 15), timeout=60, resume=False):
         score = 0
         avg_score = 0
         done = False
-        env = Game.random(env_size, MAX_REWARD)
+        aim_pos = Point(
+            np.random.randint(6, env_size[0] - 2), np.random.randint(int(env_size[1] / 2 + 2), env_size[1] - 2))
+        player_pos = Point(np.random.randint(2, 4), np.random.randint(2, 5))
+        env = Game(player_pos, aim_pos, obstacles, env_size, MAX_REWARD)
         observation = env.reset()
         game_sav = []
         time_step = 0
