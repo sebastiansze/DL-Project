@@ -117,15 +117,15 @@ class Game:
     def create_map_for_player_id(self, player_id: int):
         m = np.zeros(self.board_size)
         for ob in self.obstacles:
-            m[ob.x, ob.y] = 0.3
+            m[ob.x, ob.y] = 0.25
         for id_, player in enumerate(self.players):
             if id_ == player_id:
                 if 0 < player.position.x < self.board_size[0] and 0 < player.position.y < self.board_size[1]:
                     m[player.position.x, player.position.y] = 1
-                m[player.aim.x, player.aim.y] = 0.9
+                m[player.aim.x, player.aim.y] = 0.75
             else:
                 if 0 < player.position.x < self.board_size[0] and 0 < player.position.y < self.board_size[1]:
-                    m[player.position.x, player.position.y] = 0.4
+                    m[player.position.x, player.position.y] = 0.5
         return m
 
     def check_bounds(self, p: Point):
