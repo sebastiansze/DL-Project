@@ -1,14 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
 from tqdm import tqdm
 
 # import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
+
 from Agent import Agent
 from GameLogic import Game, Point
-from visualisation import Helpers
+from visualisation import Visualisation, Helpers
 
 MAX_REWARD = 20000
 
@@ -17,7 +17,7 @@ def play():
     pass
 
 
-def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
+def train(n_games=10, env_size=(15, 15), timeout=60, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -30,6 +30,11 @@ def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
     agent = Agent(gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4, input_dims=[env_size[0] * env_size[1]],
                   mem_size=100000, batch_size=64, eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
 
+    num_obstacles = np.random.randint(15, 25)
+    obstacles = []
+    for i in range(num_obstacles):
+        obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
+
     if resume:
         agent.load_models()
 
@@ -38,7 +43,10 @@ def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
         score = 0
         avg_score = 0
         done = False
-        env = Game.random(env_size, MAX_REWARD)
+        aim_pos = Point(
+            np.random.randint(6, env_size[0] - 2), np.random.randint(int(env_size[1] / 2 + 2), env_size[1] - 2))
+        player_pos = Point(np.random.randint(2, 4), np.random.randint(2, 5))
+        env = Game(player_pos, aim_pos, obstacles, env_size, MAX_REWARD)
         observation = env.reset()
         game_sav = []
         time_step = 0
@@ -46,7 +54,7 @@ def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
             time_step += 1
 
             action = agent.choose_action(observation)
-            observation_, reward, done = env.step(action)
+            next_observation, reward, done = env.step(action)
             if reward == MAX_REWARD:
                 reached += 1
                 if i_game > (n_games - 100):
@@ -54,12 +62,12 @@ def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
 
             score += reward
             agent.store_transition(observation, action,
-                                   reward, observation_, int(done))
+                                   reward, next_observation, int(done))
 
             agent.learn()
-            observation = observation_
+            observation = next_observation
 
-            game_sav.append(observation_)
+            game_sav.append(next_observation)
             eps_history.append(agent.epsilon)
 
             ddqn_scores.append(score)
@@ -83,15 +91,16 @@ def train(n_games=10000, env_size=(15, 15), timeout=60, resume=False):
                       'Erreicht: ' + str(reached))
         saved_games.append(game_sav)
 
-
-
     print("")
     print(str(n_games) + " Spieldurchläufe: " + str(reached) + " mal Ziel erreicht, Quote = " + str(reached / n_games))
     print("Quote der letzten 100 Durchläufe " + str(reached_last_100 / 100))
-    plt.plot(score_saver)
-    plt.show()
-    plt.plot(avg_score_saver)
-    plt.show()
+    # plt.plot(score_saver)
+    # plt.show()
+    # plt.plot(avg_score_saver)
+    # plt.show()
+
+    viz = Visualisation(saved_games[-1], *env_size)
+
     # What was this supposed to do? Definitely does not work like this!
     # helper = Helpers(env)
     # randomgame = np.random.randint(1,20)

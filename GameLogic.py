@@ -13,11 +13,8 @@ class Point:
     def __ne__(self, other):
         return self.__class__ != other.__class__ or self.x != other.x or self.y != other.y
 
-    def distance_to(self, to, special=False):
-        if special:
-            return np.sqrt(np.square(self.x - to.x) + np.square(self.y - to.y))
-        else:
-            return np.sqrt(np.square(self.x - to.x) + np.square(self.y - to.y))
+    def distance_to(self, to):
+        return np.sqrt(np.square(self.x - to.x) + np.square(self.y - to.y))
 
 
 class Game:
@@ -27,13 +24,12 @@ class Game:
         self.aim = aim_pos
         self.board_size = board_size
         self.obstacles = obstacles
-        self.board_size = board_size
         self.MAX_REWARD = max_reward
         self.safe_dist = safe_dist
-        self.reward = 0
 
     @staticmethod
     def random(env_size=(10, 10), max_reward=100, safe_dist=3):
+        #TODO: Why this range of random values - it's actually a really small variance ?
         aim_pos = Point(
             np.random.randint(6, env_size[0] - 2), np.random.randint(int(env_size[1] / 2 + 2), env_size[1] - 2))
         player_pos = Point(np.random.randint(2, 4), np.random.randint(2, 5))
@@ -41,13 +37,11 @@ class Game:
         obstacles = []
         for i in range(num_obstacles):
             obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
-        return Game(player_pos, aim_pos, obstacles, board_size=env_size, max_reward=max_reward)
+        return Game(player_pos, aim_pos, obstacles, board_size=env_size, max_reward=max_reward, safe_dist=3)
 
     def reset(self):
         self.player_pos = self.start_pos
-        self.reward = 0
-
-        return self.create_map().reshape(self.board_size[0] * self.board_size[1])
+        return self.create_map().flatten()
 
     def step(self, action):
         if action == 0:
@@ -59,7 +53,7 @@ class Game:
         elif action == 3:
             self.player_pos.y -= 1
 
-        observ = self.create_map().reshape(self.board_size[0] * self.board_size[1])
+        observ = self.create_map().flatten()
 
         reward, done = self.get_reward_for_position(self.player_pos)
 
@@ -94,12 +88,10 @@ class Game:
             return 0, False
 
     def get_reward_for_position(self, pos: Point):
-        reward = 0
-        reward -= 300 * pos.distance_to(self.aim, special=True) / (self.board_size[1] + self.board_size[0])
-        rew, done = self.check_bounds(pos)
-        reward += rew
+        reward, done = self.check_bounds(pos)
+        reward -= 300 * pos.distance_to(self.aim) / (self.board_size[1] + self.board_size[0])
         for ob in self.obstacles:
-            reward -= 1000 * np.exp(-(pos.distance_to(ob, special=True) * self.safe_dist))
+            reward -= 1000 * np.exp(-(pos.distance_to(ob) * self.safe_dist))
 
         edge_control = 600
         if pos.x == 0 or pos.x == self.board_size[0] - 1:

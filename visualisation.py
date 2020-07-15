@@ -35,18 +35,28 @@ def print_layers(layers, fill='\u2590\u2588\u258C'):
 
 class Visualisation:
     def __init__(self, game, size_x, size_y):
-        game = np.reshape(game, (len(game), size_y, size_x))
-        print_layers(game == 0.3)
-        print(game.shape)
-
         self._agent_count = 1
         self._size_x = size_x
         self._size_y = size_y
+        self._time_steps = len(game)
         self._next_step = False
 
-        # History
-        self._hist = np.zeros((0, self._agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
-        self._hist_next = np.zeros((0, self._agent_count, 2))  # shape: (time steps, agent_count, 2) -> 2 for x & y
+        game = np.reshape(game, (len(game), size_y, size_x))
+
+        # Obstacles
+        o_maps = (game == 0.3)
+        if not np.all(np.isin(np.count_nonzero(o_maps, axis=0), [0, self._time_steps])):
+            Warning('Obstacles changed over time')
+        self._obstacle_maps = o_maps
+
+        # Aim Positions
+        a_maps = (game == 0.9)
+        if not np.all(np.isin(np.count_nonzero(a_maps, axis=0), [0, self._time_steps])):
+            Warning('Aims changed over time')
+        self._aim_maps = a_maps
+
+        # Current Positions
+        self._current_maps = (game == 1.0)
 
         # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s), 'third-party fault accident' (3)
         # and 'time out' (t)
@@ -55,7 +65,7 @@ class Visualisation:
         # Color
         self._color_hue_offset = np.random.uniform()
 
-    def get_filtered_map(self, agent=None, layer=None):
+    def get_filtered_map(self, time_step=-1, agent=None, layer=None):
         """
         Returns a filtered map with only wanted layers
         :param agent: number of agent, None for all agents
@@ -66,7 +76,7 @@ class Visualisation:
         return np.zeros((self._size_x, self._size_y))
         # return self._map[self._layer_filter(agent, layer)]
 
-    def get_map_for_agent(self, agent, view_filed=None):
+    def get_map_for_agent(self, time_step=-1, agent=0, view_filed=None):
         """
         Get map for agent X's point of view including: obstacles, own aim position,
         own current position (, own next position), others current position (, others next position).
@@ -74,7 +84,8 @@ class Visualisation:
         :param view_filed: size of view field
         :return: map as boolean array with shape [4 or 6, size_x, size_y]
         """
-        obstacles = self.get_filtered_map(layer='o')
+        raise Exception('Not implemented')
+        obstacles = self._obstacle_maps[time_step]
         a_c_n_pos = self.get_filtered_map(agent=agent)
         others_cp = np.any(self.get_filtered_map(layer='c'), axis=0)  # current positions of other agents
         others_cp = others_cp & ~self.get_filtered_map(agent=agent, layer='c')  # subtract own current position
@@ -92,8 +103,12 @@ class Visualisation:
 
         return agent_map
 
-    def get_positions(self, agent=None, layer=None):
-        return [0, 0]  # TODO
+    def get_positions(self, time_step=-1, agent=None, layer=None):
+        # TODO: multi agent
+        if layer == 'c':
+            return self._current_maps[time_step]
+        else:
+            raise Exception('Not implemented yet.')
 
     def get_start_positions(self, agent=None):
         """
@@ -101,12 +116,8 @@ class Visualisation:
         :param agent: number of agent, None for all agents
         :return: array with shape [2, 0] if agent is defined or [2, agent_count] for all agents
         """
-        if self._hist.shape[0] == 0:
-            return None
-        if agent is None:
-            return self._hist[0]
-        else:
-            return self._hist[0, agent]
+        # TODO: multi agent
+        return self._current_maps[0]
 
     @staticmethod
     def _plot_label(ax, x, y, text, color):
