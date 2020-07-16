@@ -14,13 +14,13 @@ from GameLogic import Game, Point
 from visualisation import Visualisation, Helpers
 
 MAX_REWARD = 200000
-
-
+VIEW_RANGE = (2,2,2,2)
+VIEW_REDUCED = False
 def play():
     pass
 
 
-def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
+def train(n_games=400, env_size=(15, 15), n_agents=2, timeout=100, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -30,10 +30,16 @@ def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=60, resume=False)
     reached = np.zeros(n_agents, dtype=np.int32)
     reached_last_100 = np.zeros(n_agents, dtype=np.int32)
 
+    if VIEW_REDUCED:
+        inputSize = (VIEW_RANGE[0]+1 + VIEW_RANGE[1])*(VIEW_RANGE[2]+1 + VIEW_RANGE[3])+4
+        print("Use Reduced View Mode")
+    else:
+        inputSize = env_size[0] * env_size[1]
     agents = []
+
     for agent_id in range(n_agents):
         agent = Agent(f"agent_{agent_id}", gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4,
-                      input_dims=[env_size[0] * env_size[1]], mem_size=100000, batch_size=64,
+                      input_dims=[inputSize], mem_size=100000, batch_size=64,
                       eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
         if resume:
             agent.load_models()
@@ -49,7 +55,7 @@ def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=60, resume=False)
         scores = np.zeros(n_agents)
         avg_scores = np.zeros(n_agents)
         agent_in_final_state = np.full(n_agents, False)
-        env = Game(obstacles, None, env_size, MAX_REWARD)
+        env = Game(obstacles, None, env_size, MAX_REWARD, viewReduced=VIEW_REDUCED,viewSize=VIEW_RANGE)
         for i in range(n_agents):
             env.add_player()
         observations = env.reset()
@@ -102,7 +108,7 @@ def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=60, resume=False)
             avg_score_saver.append(avg_scores)
             epsilons = {agent.id: agent.epsilon for agent in agents}
             if i_game % int(n_games / prec) == int(n_games / prec) - 1:
-                print(f"episode: {i_game} score: {scores.tolist()} average score {avg_scores.tolist()} "
+                print(f"episode: {i_game} score: {np.round(scores.tolist(),3)}, average score {avg_scores.tolist()} "
                       f"epsilon {epsilons} Erreicht: {reached.tolist()}")
         saved_games.append(game_sav)
 

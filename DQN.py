@@ -13,10 +13,10 @@ class DuelingLinearDeepQNetwork(nn.Module):
         self.fc2 = nn.Linear(256, 512)
         self.fc3 = nn.Linear(512, 256)
 
-        self.preV = nn.Linear(256, 128)
+        self.preV = nn.Linear(260, 128)
         self.V = nn.Linear(128, 1)
 
-        self.preA = nn.Linear(256, 128)
+        self.preA = nn.Linear(260, 128)
         self.A = nn.Linear(128, n_actions)
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
@@ -25,12 +25,14 @@ class DuelingLinearDeepQNetwork(nn.Module):
         self.to(self.device)
 
     def forward(self, state):
+        data = state[:, -4:]
         l1 = F.relu(self.fc1(state))
         l2 = F.relu(self.fc2(l1))
         l3 = F.relu(self.fc3(l2))
-        prV = F.relu(self.preV(l3))
+        l4 = T.cat((l3, data), dim=1)
+        prV = F.relu(self.preV(l4))
         V = self.V(prV)
-        prA = F.relu(self.preA(l3))
+        prA = F.relu(self.preA(l4))
         A = self.A(prA)
 
         return V, A

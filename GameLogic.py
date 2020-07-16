@@ -55,12 +55,15 @@ class Player:
 
 
 class Game:
-    def __init__(self, obstacles, players: List[Player] = None, board_size=(10, 10), max_reward=100, safe_dist=3):
+    def __init__(self, obstacles, players: List[Player] = None, board_size=(10, 10), max_reward=100, safe_dist=3, viewSize = (2,2,2,2), viewReduced = False):
         self.players = [] if players is None else players
         self.board_size = board_size
         self.obstacles = obstacles
         self.MAX_REWARD = max_reward
         self.safe_dist = safe_dist
+        self.viewSize = viewSize
+        self.viewTo1D = (self.viewSize[0] + self.viewSize[1] + 1) * (self.viewSize[2] + self.viewSize[3] + 1)
+        self.viewReduced = viewReduced
 
     def add_player(self, start: Point = None, aim: Point = None):
         """
@@ -133,19 +136,75 @@ class Game:
 
     def create_map_for_player_id(self, player_id: int):
         m = np.zeros(self.board_size)
+
+        playerSav = (0,0)
+        aimSav = (0,0)
         for ob in self.obstacles:
             m[ob.x, ob.y] = 0.25
         for id_, player in enumerate(self.players):
+
             if id_ == player_id:
                 m[player.aim.x, player.aim.y] = 0.75
                 if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]:
                     m[player.position.x, player.position.y] = 1
+                    playerSav = (player.position.x, player.position.y)
+                    aimSav = (player.aim.x, player.aim.y)
             else:
                 # Only set position if it is not own position
                 if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]\
                         and m[player.position.x, player.position.y] != 0.75:
                     m[player.position.x, player.position.y] = 0.5
+        observation = self.getView(m, self.viewSize, (player.position.x, player.position.y))
+
+        if self.viewReduced:
+            data = np.array([playerSav[0], playerSav[1], aimSav[0], aimSav[1]])
+            m = np.concatenate((observation, data), axis=None)
+
         return m
+
+    def getView(self, board, view, pp):
+        # board[pp[0], pp[1]] = 1
+        out = np.zeros((1 + view[0] + view[1], 1 + view[2] + view[3]))
+        xMin = pp[0] - view[0]
+        xMax = pp[0] + view[1]
+        yMin = pp[1] - view[2]
+        yMax = pp[1] + view[3]
+
+        if xMin < 0:
+            xMinOut = 0
+        else:
+            xMinOut = xMin
+
+        if yMin < 0:
+            yMinOut = 0
+        else:
+            yMinOut = yMin
+
+        # --- Offsets ---
+
+        if xMin < 0:
+            xMinOffset = -xMin
+        else:
+            xMinOffset = 0
+
+        if xMax >= board.shape[0]:
+            xMaxOffset = out.shape[0] + board.shape[0] - xMax - 1
+        else:
+            xMaxOffset = out.shape[0]
+
+        if yMin < 0:
+            yMinOffset = -yMin
+        else:
+            yMinOffset = 0
+
+        if yMax >= board.shape[1]:
+            yMaxOffset = out.shape[1] + board.shape[1] - yMax - 1
+        else:
+            yMaxOffset = out.shape[1]
+        # print("PlayerPos = " + str(self.playerPos[0]) + "," + str(self.playerPos[1]))
+        out[xMinOffset:xMaxOffset, yMinOffset:yMaxOffset] = board[xMinOut:xMax + 1, yMinOut:yMax + 1]
+        # print(out)
+        return out
 
     def check_bounds(self, p: Point):
         if p.x < 0:
