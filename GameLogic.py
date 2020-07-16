@@ -56,7 +56,7 @@ class Game:
             occupied_starts = [player.start for player in self.players]
             while not unique:
                 start = Point(np.random.randint(2, 4), np.random.randint(2, 5))
-                unique = start not in occupied_starts
+                unique = start not in occupied_starts and start not in self.obstacles
 
         if aim is None:
             unique = False
@@ -64,7 +64,7 @@ class Game:
             while not unique:
                 aim = Point(np.random.randint(6, self.board_size[0] - 2),
                             np.random.randint(int(self.board_size[1] / 2 + 2), self.board_size[1] - 2))
-                unique = aim not in occupied_aims
+                unique = aim not in occupied_aims and aim not in self.obstacles
 
         self.players.append(Player(start, aim))
 
