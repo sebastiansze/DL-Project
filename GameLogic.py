@@ -148,11 +148,15 @@ class Game:
         # reduce reward if we get close to / collide with an obstacle
         for ob in self.obstacles:
             reward -= 1000 * np.exp(-(player.position.distance_to(ob) * self.safe_dist))
+            if ob == player.position:
+                done = True
 
         # reduce reward if we get close to / collide with another player
         for player_b_id, player_b in enumerate(self.players):
             if player_b_id != player_id:
                 reward -= 1000 * np.exp(-(player.position.distance_to(player_b.position) * self.safe_dist))
+                if player.position == player_b.position:
+                    done = True
 
         # Penalize being close to the board borders
         edge_control = 600
