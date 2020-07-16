@@ -13,14 +13,14 @@ from Agent import Agent
 from GameLogic import Game, Point
 from visualisation import Visualisation, Helpers
 
-MAX_REWARD = 20000
+MAX_REWARD = 200000
 
 
 def play():
     pass
 
 
-def train(n_games=5, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
+def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -113,18 +113,18 @@ def train(n_games=5, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
     # plt.plot(avg_score_saver)
     # plt.show()
 
-    plot_game_i = 0
+    plot_game_i = n_games - 1
     viz = Visualisation(saved_games[plot_game_i], *env_size, n_agents)
 
     # Check if directory for images exists
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    img_game_dir = os.path.join('img', '{}_game_{}'.format(dt, plot_game_i))
+    img_game_dir = os.path.join('img', f'{dt}_game_{plot_game_i}')
     if not os.path.exists(img_game_dir):
         os.makedirs(img_game_dir)
 
     for time_step in range(viz.time_steps):
         viz.plot_all(time_step=time_step, plot_input=True,
-                     save_as=os.path.join(img_game_dir, 'time_{}.png'.format(time_step)))
+                     save_as=os.path.join(img_game_dir, f'time_{time_step}.png'))
 
     # What was this supposed to do? Definitely does not work like this!
     # helper = Helpers(env)

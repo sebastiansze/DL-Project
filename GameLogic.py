@@ -28,15 +28,18 @@ class Player:
     def __init__(self, start: Point, aim: Point):
         self.start = start
         self.position = copy.deepcopy(start)
+        self.previous_position = copy.deepcopy(start)
         self.aim = aim
 
     def reset(self):
         self.position = copy.deepcopy(self.start)
+        self.previous_position = copy.deepcopy(self.start)
 
     def move(self, action):
         """
         :param action: Moves player according to action
         """
+        self.previous_position = copy.deepcopy(self.position)
         if action == 0:
             self.position.x += 1
         elif action == 1:
@@ -45,6 +48,10 @@ class Player:
             self.position.y += 1
         elif action == 3:
             self.position.y -= 1
+
+    def did_collide_with(self, other: 'Player'):
+        # True if players switched places and therefore ran front to front into each other
+        return other.position == self.previous_position and self.position == other.previous_position
 
 
 class Game:
@@ -64,6 +71,7 @@ class Game:
             unique = False
             occupied_starts = [player.start for player in self.players]
             while not unique:
+                # TODO: Why this range of random values - it's actually a really small variance ?
                 start = Point(np.random.randint(2, 4), np.random.randint(2, 5))
                 unique = start not in occupied_starts and start not in self.obstacles
 
@@ -129,9 +137,9 @@ class Game:
             m[ob.x, ob.y] = 0.25
         for id_, player in enumerate(self.players):
             if id_ == player_id:
+                m[player.aim.x, player.aim.y] = 0.75
                 if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]:
                     m[player.position.x, player.position.y] = 1
-                m[player.aim.x, player.aim.y] = 0.75
             else:
                 # Only set position if it is not own position
                 if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]\
@@ -166,7 +174,8 @@ class Game:
         for player_b_id, player_b in enumerate(self.players):
             if player_b_id != player_id:
                 reward -= 1000 * np.exp(-(player.position.distance_to(player_b.position) * self.safe_dist))
-                if player.position == player_b.position:
+                # If players ended up on same field or crashed during move terminate them
+                if player.position == player_b.position or player.did_collide_with(player_b):
                     done = True
 
         # Penalize being close to the board borders
