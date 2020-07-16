@@ -14,7 +14,7 @@ from GameLogic import Game, Point
 from visualisation import Visualisation
 
 MAX_REWARD = 200000
-VIEW_RANGE = (2, 2, 2, 2)
+VIEW_RANGE = (2, 2, 2, 2)   #
 VIEW_REDUCED = True
 
 
@@ -22,7 +22,7 @@ def play():
     pass
 
 
-def train(n_games=20, env_size=(15, 15), n_agents=5, timeout=100, resume=False):
+def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -42,7 +42,7 @@ def train(n_games=20, env_size=(15, 15), n_agents=5, timeout=100, resume=False):
     for agent_id in range(n_agents):
         agent = Agent(f"agent_{agent_id}", gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4,
                       input_dims=[input_size], mem_size=100000, batch_size=64,
-                      eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
+                      eps_min=0.01, eps_dec=5 * 1e-4, replace=100)
         if resume:
             agent.load_models()
         agents.append(agent)

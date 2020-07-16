@@ -137,7 +137,7 @@ class Game:
     def create_map_for_player_id(self, player_id: int):
         m = np.zeros(self.board_size)
 
-        playerSav = (0,0)
+        playerSav = (0, 0)
         aimSav = (0,0)
         for ob in self.obstacles:
             m[ob.x, ob.y] = 0.25
@@ -147,16 +147,20 @@ class Game:
                 m[player.aim.x, player.aim.y] = 0.75
                 if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]:
                     m[player.position.x, player.position.y] = 1
-                    playerSav = (player.position.x, player.position.y)
+                    playerSav = (np.copy(player.position.x), np.copy(player.position.y))
                     aimSav = (player.aim.x, player.aim.y)
+                    #print("Saved at ", str(playerSav[0]) + " " + str(playerSav[1]))
             else:
                 # Only set position if it is not own position
                 if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]\
                         and m[player.position.x, player.position.y] != 0.75:
                     m[player.position.x, player.position.y] = 0.5
-        observation = self.getView(m, self.viewSize, (player.position.x, player.position.y))
+        #print("Viewed  at ", str(playerSav[0]) + " " + str(playerSav[1]))
+        observation = self.getView(m, self.viewSize, (playerSav[0], playerSav[1]))
 
+        #print(observation)
         if self.viewReduced:
+
             data = np.array([playerSav[0], playerSav[1], aimSav[0], aimSav[1]])
             m = np.concatenate((observation, data), axis=None)
 
