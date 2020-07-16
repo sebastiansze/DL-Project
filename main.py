@@ -20,7 +20,7 @@ def play():
     pass
 
 
-def train(n_games=1, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
+def train(n_games=5, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -53,7 +53,7 @@ def train(n_games=1, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
         for i in range(n_agents):
             env.add_player()
         observations = env.reset()
-        game_sav = []
+        game_sav = [observations]
         time_step = 0
         # Run until all agents reached a final state
         while not np.all(agent_in_final_state):
@@ -100,7 +100,7 @@ def train(n_games=1, env_size=(15, 15), n_agents=2, timeout=60, resume=False):
         score_saver.append(scores)
         if i_game > 20:
             avg_score_saver.append(avg_scores)
-            epsilons = {agent.id : agent.epsilon for agent in agents}
+            epsilons = {agent.id: agent.epsilon for agent in agents}
             if i_game % int(n_games / prec) == int(n_games / prec) - 1:
                 print(f"episode: {i_game} score: {scores.tolist()} average score {avg_scores.tolist()} "
                       f"epsilon {epsilons} Erreicht: {reached.tolist()}")

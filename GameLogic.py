@@ -14,15 +14,24 @@ class Point:
     def __ne__(self, other):
         return self.__class__ != other.__class__ or self.x != other.x or self.y != other.y
 
+    def __repr__(self):
+        return f"Point({self.x}, {self.y})"
+
+    def __str__(self):
+        return f"[{self.x}, {self.y}]"
+
     def distance_to(self, to):
         return np.sqrt(np.square(self.x - to.x) + np.square(self.y - to.y))
 
 
 class Player:
     def __init__(self, start: Point, aim: Point):
-        self.start = copy.deepcopy(start)
-        self.position = start
+        self.start = start
+        self.position = copy.deepcopy(start)
         self.aim = aim
+
+    def reset(self):
+        self.position = copy.deepcopy(self.start)
 
     def move(self, action):
         """
@@ -82,7 +91,7 @@ class Game:
 
     def reset(self):
         for player in self.players:
-            player.position = player.start
+            player.reset()
         observations = []
         for player_id in range(len(self.players)):
             observations.append(self.create_map_for_player_id(player_id).flatten())
@@ -120,11 +129,13 @@ class Game:
             m[ob.x, ob.y] = 0.25
         for id_, player in enumerate(self.players):
             if id_ == player_id:
-                if 0 < player.position.x < self.board_size[0] and 0 < player.position.y < self.board_size[1]:
+                if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]:
                     m[player.position.x, player.position.y] = 1
                 m[player.aim.x, player.aim.y] = 0.75
             else:
-                if 0 < player.position.x < self.board_size[0] and 0 < player.position.y < self.board_size[1]:
+                # Only set position if it is not own position
+                if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]\
+                        and m[player.position.x, player.position.y] != 0.75:
                     m[player.position.x, player.position.y] = 0.5
         return m
 
