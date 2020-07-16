@@ -34,14 +34,23 @@ def print_layers(layers, fill='\u2590\u2588\u258C'):
 
 
 class Visualisation:
-    def __init__(self, game, size_x, size_y, agent_count):
-        self._size_x = size_x
-        self._size_y = size_y
+    def __init__(self, game, size_x, size_y, agent_count, view_size, view_reduced=False):
+        self._size_x = view_size[0] + 1 + view_size[1] if view_reduced else size_x
+        self._size_y = view_size[2] + 1 + view_size[3] if view_reduced else size_y
         self._agent_count = agent_count
         self.time_steps = len(game)
         self._next_step = False
 
-        self._game = np.reshape(game, (self.time_steps, agent_count, size_x, size_y))
+        self._game = np.array(game)
+        self._game = np.reshape(self._game[:, :, 0:self._size_x*self._size_y],
+                                (self.time_steps, agent_count, self._size_x, self._size_y))
+        # else:
+        #     self._game = np.zeros((0, agent_count, self._size_x, self._size_y))
+        #     for t in range(self.time_steps):
+        #         for i in self._agent_count:
+        #             g = np.reshape(game[t][i][0:self._size_x*self._size_y])
+        #     np.stack(self._game, g)
+
 
         # Obstacles
         self._obstacle_maps = (self._game == 0.25)
@@ -135,7 +144,7 @@ class Visualisation:
         ax.set_yticks([])
 
     def _plot_heatmap(self, ax, map):
-        ax.imshow(map, cmap='hot', interpolation='nearest')
+        ax.imshow(map, cmap='hot', interpolation='nearest', vmin=0, vmax=1)
 
         # ax.set_ylim(0, self._size_x)
         # ax.set_xlim(0, self._size_y)

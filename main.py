@@ -11,16 +11,18 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 from Agent import Agent
 from GameLogic import Game, Point
-from visualisation import Visualisation, Helpers
+from visualisation import Visualisation
 
 MAX_REWARD = 200000
-VIEW_RANGE = (2,2,2,2)
-VIEW_REDUCED = False
+VIEW_RANGE = (2, 2, 2, 2)
+VIEW_REDUCED = True
+
+
 def play():
     pass
 
 
-def train(n_games=400, env_size=(15, 15), n_agents=2, timeout=100, resume=False):
+def train(n_games=20, env_size=(15, 15), n_agents=5, timeout=100, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -31,15 +33,15 @@ def train(n_games=400, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
     reached_last_100 = np.zeros(n_agents, dtype=np.int32)
 
     if VIEW_REDUCED:
-        inputSize = (VIEW_RANGE[0]+1 + VIEW_RANGE[1])*(VIEW_RANGE[2]+1 + VIEW_RANGE[3])+4
+        input_size = (VIEW_RANGE[0] + 1 + VIEW_RANGE[1])*(VIEW_RANGE[2] + 1 + VIEW_RANGE[3]) + 4
         print("Use Reduced View Mode")
     else:
-        inputSize = env_size[0] * env_size[1]
+        input_size = env_size[0] * env_size[1]
     agents = []
 
     for agent_id in range(n_agents):
         agent = Agent(f"agent_{agent_id}", gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4,
-                      input_dims=[inputSize], mem_size=100000, batch_size=64,
+                      input_dims=[input_size], mem_size=100000, batch_size=64,
                       eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
         if resume:
             agent.load_models()
@@ -55,7 +57,7 @@ def train(n_games=400, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
         scores = np.zeros(n_agents)
         avg_scores = np.zeros(n_agents)
         agent_in_final_state = np.full(n_agents, False)
-        env = Game(obstacles, None, env_size, MAX_REWARD, viewReduced=VIEW_REDUCED,viewSize=VIEW_RANGE)
+        env = Game(obstacles, None, env_size, MAX_REWARD, viewReduced=VIEW_REDUCED, viewSize=VIEW_RANGE)
         for i in range(n_agents):
             env.add_player()
         observations = env.reset()
@@ -120,7 +122,7 @@ def train(n_games=400, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
     # plt.show()
 
     plot_game_i = n_games - 1
-    viz = Visualisation(saved_games[plot_game_i], *env_size, n_agents)
+    viz = Visualisation(saved_games[plot_game_i], *env_size, n_agents, view_size=VIEW_RANGE, view_reduced=VIEW_REDUCED)
 
     # Check if directory for images exists
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
