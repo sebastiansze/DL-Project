@@ -6,7 +6,7 @@ import torch as T
 
 
 class DuelingLinearDeepQNetwork(nn.Module):
-    def __init__(self, alpha, n_actions, input_dims):
+    def __init__(self, alpha, n_actions, input_dims,viewReduced=False):
         super(DuelingLinearDeepQNetwork, self).__init__()
 
         self.fc1 = nn.Linear(*input_dims, 256)
@@ -23,17 +23,27 @@ class DuelingLinearDeepQNetwork(nn.Module):
         self.loss = nn.MSELoss()
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
+        self.viewReduced = viewReduced
 
     def forward(self, state):
-        data = state[:, -4:]
-        l1 = F.relu(self.fc1(state))
-        l2 = F.relu(self.fc2(l1))
-        l3 = F.relu(self.fc3(l2))
-        l4 = T.cat((l3, data), dim=1)
-        prV = F.relu(self.preV(l4))
-        V = self.V(prV)
-        prA = F.relu(self.preA(l4))
-        A = self.A(prA)
+        if self.viewReduced:
+            l1 = F.relu(self.fc1(state))
+            l2 = F.relu(self.fc2(l1))
+            l3 = F.relu(self.fc3(l2))
+            prV = F.relu(self.preV(l3))
+            V = self.V(prV)
+            prA = F.relu(self.preA(l3))
+            A = self.A(prA)
+        else:
+            data = state[:, -4:]
+            l1 = F.relu(self.fc1(state))
+            l2 = F.relu(self.fc2(l1))
+            l3 = F.relu(self.fc3(l2))
+            l4 = T.cat((l3, data), dim=1)
+            prV = F.relu(self.preV(l4))
+            V = self.V(prV)
+            prA = F.relu(self.preA(l4))
+            A = self.A(prA)
 
         return V, A
 
