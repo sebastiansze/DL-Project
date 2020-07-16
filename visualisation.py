@@ -34,29 +34,34 @@ def print_layers(layers, fill='\u2590\u2588\u258C'):
 
 
 class Visualisation:
-    def __init__(self, game, size_x, size_y):
-        self._agent_count = 1
+    def __init__(self, game, size_x, size_y, agent_count):
         self._size_x = size_x
         self._size_y = size_y
-        self._time_steps = len(game)
+        self._agent_count = agent_count
+        self.time_steps = len(game)
         self._next_step = False
 
-        game = np.reshape(game, (len(game), size_y, size_x))
+        self._game = np.reshape(game, (self.time_steps, agent_count, size_x, size_y))
 
         # Obstacles
-        o_maps = (game == 0.3)
-        if not np.all(np.isin(np.count_nonzero(o_maps, axis=0), [0, self._time_steps])):
-            Warning('Obstacles changed over time')
-        self._obstacle_maps = o_maps
+        self._obstacle_maps = (self._game == 0.25)
+        if not np.all(np.isin(np.count_nonzero(self._obstacle_maps, axis=(0, 1)), [0, self.time_steps * agent_count])):
+            print('Warning: Positions of obstacles changed over time or are different for different agents')
+
+        # Others Position
+        self._others_maps = (self._game == 0.5)
 
         # Aim Positions
-        a_maps = (game == 0.9)
-        if not np.all(np.isin(np.count_nonzero(a_maps, axis=0), [0, self._time_steps])):
-            Warning('Aims changed over time')
-        self._aim_maps = a_maps
+        self._aim_maps = (self._game == 0.75)
+        if not np.all(np.isin(np.count_nonzero(self._aim_maps, axis=0), [0, self.time_steps])):
+            print('Warning: Aims changed over time')
 
         # Current Positions
-        self._current_maps = (game == 1.0)
+        self._current_maps = (self._game == 1.0)
+        if np.any(np.count_nonzero(self._current_maps, axis=(2, 3)) > 1):
+            print('Warning: At least one time step there are several positions for one or more agents')
+        elif np.any(np.count_nonzero(self._current_maps, axis=(2, 3)) < 1):
+            print('Warning: At least at one time step for one or more agents the positions are missing')
 
         # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s), 'third-party fault accident' (3)
         # and 'time out' (t)
@@ -65,18 +70,7 @@ class Visualisation:
         # Color
         self._color_hue_offset = np.random.uniform()
 
-    def get_filtered_map(self, time_step=-1, agent=None, layer=None):
-        """
-        Returns a filtered map with only wanted layers
-        :param agent: number of agent, None for all agents
-        :param layer: 'o' for obstacles, 'a' for aim positions, 'c' for current positions,
-        'n' for next positions, None for all layers
-        :return: filtered map as boolean array with shape (requested layers, size_x, size_y)
-        """
-        return np.zeros((self._size_x, self._size_y))
-        # return self._map[self._layer_filter(agent, layer)]
-
-    def get_map_for_agent(self, time_step=-1, agent=0, view_filed=None):
+    def get_map_for_agent(self, time_step=-1, agent=0, plot_input=False):
         """
         Get map for agent X's point of view including: obstacles, own aim position,
         own current position (, own next position), others current position (, others next position).
@@ -84,40 +78,22 @@ class Visualisation:
         :param view_filed: size of view field
         :return: map as boolean array with shape [4 or 6, size_x, size_y]
         """
-        raise Exception('Not implemented')
-        obstacles = self._obstacle_maps[time_step]
-        a_c_n_pos = self.get_filtered_map(agent=agent)
-        others_cp = np.any(self.get_filtered_map(layer='c'), axis=0)  # current positions of other agents
-        others_cp = others_cp & ~self.get_filtered_map(agent=agent, layer='c')  # subtract own current position
+        obstacles = self._obstacle_maps[time_step, agent]
+        aim_map = self._aim_maps[time_step, agent]
+        cur_map = self._current_maps[time_step, agent]
+        # nxt_map = ... TODO: Next step
+        others_cp = self._others_maps[time_step, agent]
+        input_map = self._game[time_step, agent]
 
-        # TODO: field of view
-        # others_cp = others_cp & ...
-        agent_map = np.concatenate((obstacles, a_c_n_pos, others_cp))
+        agent_map = np.stack((obstacles, aim_map, cur_map, others_cp, input_map))  # TODO: Next step
 
-        if self._next_step:
-            others_np = np.any(self.get_filtered_map(layer='n'), axis=0)  # next positions of other agents
-            others_np = others_np & ~self.get_filtered_map(agent=agent, layer='n')  # subtract own next position
-            # TODO: field of view
-            # others_np = others_np & ...
-            agent_map = np.concatenate((agent_map, others_np))
+        # TODO: Next step
+        # if self._next_step:
+        #     others_np = np.any(self.get_filtered_map(layer='n'), axis=0)  # next positions of other agents
+        #     others_np = others_np & ~self.get_filtered_map(agent=agent, layer='n')  # subtract own next position
+        #     agent_map = np.concatenate((agent_map, others_np))
 
         return agent_map
-
-    def get_positions(self, time_step=-1, agent=None, layer=None):
-        # TODO: multi agent
-        if layer == 'c':
-            return self._current_maps[time_step]
-        else:
-            raise Exception('Not implemented yet.')
-
-    def get_start_positions(self, agent=None):
-        """
-        Returns array with coordinates of first position a given agent or all agents
-        :param agent: number of agent, None for all agents
-        :return: array with shape [2, 0] if agent is defined or [2, agent_count] for all agents
-        """
-        # TODO: multi agent
-        return self._current_maps[0]
 
     @staticmethod
     def _plot_label(ax, x, y, text, color):
@@ -158,41 +134,56 @@ class Visualisation:
         ax.set_xticks([])
         ax.set_yticks([])
 
-    def _plot_overview(self, ax, plot_agent_status=True, plot_path=True):
+    def _plot_heatmap(self, ax, map):
+        ax.imshow(map, cmap='hot', interpolation='nearest')
+
+        # ax.set_ylim(0, self._size_x)
+        # ax.set_xlim(0, self._size_y)
+        ax.set_aspect('equal')
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    def _plot_overview(self, ax, time_step=-1, plot_agent_status=True, plot_path=True):
         # Obstacles
-        obstacles = self.get_filtered_map(layer='o')[0]
+        obstacles = np.any(self._obstacle_maps[-1], axis=0)
         self._plot_layer(ax, obstacles, 'black')
 
         # Agents fields
         for i_agent in range(self._agent_count):
-            start_pos = self.get_start_positions(agent=i_agent)
-            a_c_n_map = self.get_filtered_map(agent=i_agent)
+            start_pos = np.where(self._current_maps[0, i_agent])
+            aim_map = self._aim_maps[time_step, i_agent]
+            cur_map = self._current_maps[time_step, i_agent]
+            # nxt_map = ... TODO: Next step
 
             color = self._get_plot_color(i_agent, next_step=False)
             color_next = self._get_plot_color(i_agent, next_step=True)
 
             # Plot next position
-            if self._next_step:
-                self._plot_layer(ax, a_c_n_map[2], color_next)
+            # TODO: Next step
+            # if self._next_step:
+            #     self._plot_layer(ax, nxt_map, color_next)
 
             # Plot current position
-            self._plot_layer(ax, a_c_n_map[1], color)
+            self._plot_layer(ax, cur_map, color)
 
             # Plot path
             if plot_path:
+                hist = np.where(self._current_maps[0:time_step+1, i_agent])
                 offset = (1 / (self._agent_count + 1) * (i_agent + 1) * 0.5) - 0.25
-                x = self._hist[:, i_agent, 1] + 0.5 + offset
-                y = self._size_x - self._hist[:, i_agent, 0] - 0.5 + offset
+                x = hist[2] + 0.5 + offset
+                y = self._size_x - hist[1] - 0.5 + offset
                 ax.plot(x, y, '-', color=color, zorder=0)
 
             # Plot start position
-            if start_pos is not None:
+            if start_pos is not None and start_pos[0].shape[0] != 0:
                 x = start_pos[1] + 0.2
                 y = self._size_x - start_pos[0] - 1 + 0.15
                 self._plot_label(ax, x, y, "S", color)
+            else:
+                print('Warning: No start position')
 
             # Plot aim position
-            for y, x in self.get_positions(agent=i_agent, layer='a'):
+            for y, x in np.argwhere(self._aim_maps[time_step, i_agent]):
                 x = x + 0.2
                 y = self._size_x - y - 1 + 0.15
                 self._plot_label(ax, x, y, "E", color)
@@ -201,7 +192,7 @@ class Visualisation:
             if plot_agent_status:
                 for status, symbol in zip(['a', 's', '3', 't'], ['\u2713', '\u2717', '\u2717', '\u2717']):  # \u2620
                     if self._agents_conditions[i_agent] == status:
-                        for y, x in self.get_positions(agent=i_agent, layer='c'):
+                        for y, x in self._current_maps[time_step, i_agent]:
                             x = x + 0.2
                             y = self._size_x - y - 1 + 0.15
                             self._plot_label(ax, x, y, symbol, 'black')
@@ -236,7 +227,7 @@ class Visualisation:
         else:
             plt.show(block=block)
 
-    def plot_overview(self, plot_agent_status=True, block=True, save_as=None, plot_path=True):
+    def plot_overview(self, time_step=-1, plot_agent_status=True, plot_path=True, block=True, save_as=None):
         """
         Shows an overview for humans
         :return:
@@ -246,7 +237,7 @@ class Visualisation:
         fig, ax = plt.subplots(1, figsize=(5, 5))
 
         # Plot overview
-        self._plot_overview(ax, plot_agent_status=plot_agent_status, plot_path=plot_path)
+        self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
 
         if save_as:
             fig.savefig(save_as)
@@ -254,7 +245,7 @@ class Visualisation:
         else:
             plt.show(block=block)
 
-    def plot_all(self, plot_agent_status=True, block=True, save_as=None, plot_path=True):
+    def plot_all(self, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False, block=True, save_as=None):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
@@ -267,7 +258,7 @@ class Visualisation:
 
         # Plot overview on the left side
         ax = plt.Subplot(fig, outer[0])
-        self._plot_overview(ax, plot_agent_status=plot_agent_status, plot_path=plot_path)
+        self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
         ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
 
@@ -279,15 +270,21 @@ class Visualisation:
         else:
             nr_layers = 4
             layer_names = ['Obstacles', 'Aim', 'Agent\'s Pos.', 'Others Pos.']
+        if plot_input:
+            nr_layers += 1
+            layer_names.append('Input')
         agents_grid = gridspec.GridSpecFromSubplotSpec(self._agent_count, nr_layers, subplot_spec=outer[1],
                                                        wspace=0.1, hspace=0.1)
         for i_agent in range(self._agent_count):
-            layers = self.get_map_for_agent(i_agent)
+            layers = self.get_map_for_agent(time_step=time_step, agent=i_agent, plot_input=plot_input)
             for i_layer, layer in enumerate(layers):
                 i_grid = i_agent * nr_layers + i_layer
                 ax = plt.Subplot(fig, agents_grid[i_grid])
-                color = self._get_plot_color(i_agent)
-                self._plot_layer(ax, layer, color)
+                if plot_input and i_layer+1 == nr_layers:
+                    self._plot_heatmap(ax, layer)
+                else:
+                    color = self._get_plot_color(i_agent)
+                    self._plot_layer(ax, layer, color)
 
                 # layer label
                 if ax.is_first_row():

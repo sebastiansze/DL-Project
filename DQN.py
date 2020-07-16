@@ -6,7 +6,7 @@ import torch as T
 
 
 class DuelingLinearDeepQNetwork(nn.Module):
-    def __init__(self, alpha, n_actions, name, input_dims, chkpt_dir=''):
+    def __init__(self, alpha, n_actions, input_dims):
         super(DuelingLinearDeepQNetwork, self).__init__()
 
         self.fc1 = nn.Linear(*input_dims, 256)
@@ -23,8 +23,6 @@ class DuelingLinearDeepQNetwork(nn.Module):
         self.loss = nn.MSELoss()
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
-        self.checkpoint_dir = chkpt_dir
-        self.checkpoint_file = os.path.join(self.checkpoint_dir, name + '_dqn')
 
     def forward(self, state):
         l1 = F.relu(self.fc1(state))
@@ -37,10 +35,10 @@ class DuelingLinearDeepQNetwork(nn.Module):
 
         return V, A
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, file):
         # print('... saving checkpoint ...')
-        T.save(self.state_dict(), self.checkpoint_file)
+        T.save(self.state_dict(), file)
 
-    def load_checkpoint(self):
+    def load_checkpoint(self, file):
         # print('... loading checkpoint ...')
-        self.load_state_dict(T.load(self.checkpoint_file))
+        self.load_state_dict(T.load(file))
