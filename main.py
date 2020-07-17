@@ -14,7 +14,7 @@ from GameLogic import Game, Point
 from visualisation import Visualisation
 
 MAX_REWARD = 200000
-VIEW_RANGE = (2, 2, 2, 2)   #
+VIEW_RANGE = (2, 2, 2, 2)
 VIEW_REDUCED = True
 
 
@@ -22,7 +22,7 @@ def play():
     pass
 
 
-def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False):
+def train(n_games=1, env_size=(15, 15), n_agents=5, timeout=100, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -42,7 +42,7 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
     for agent_id in range(n_agents):
         agent = Agent(f"agent_{agent_id}", gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4,
                       input_dims=[input_size], mem_size=100000, batch_size=64,
-                      eps_min=0.01, eps_dec=5 * 1e-4, replace=100)
+                      eps_min=0.01, eps_dec=5 * 1e-5, replace=100)
         if resume:
             agent.load_models()
         agents.append(agent)
@@ -121,18 +121,13 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
     # plt.plot(avg_score_saver)
     # plt.show()
 
-    plot_game_i = n_games - 1
-    viz = Visualisation(saved_games[plot_game_i], *env_size, n_agents, view_size=VIEW_RANGE, view_reduced=VIEW_REDUCED)
-
-    # Check if directory for images exists
+    plot_game_i_list = range(1)  # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    img_game_dir = os.path.join('img', f'{dt}_game_{plot_game_i}')
-    if not os.path.exists(img_game_dir):
-        os.makedirs(img_game_dir)
-
-    for time_step in range(viz.time_steps):
-        viz.plot_all(time_step=time_step, plot_input=True,
-                     save_as=os.path.join(img_game_dir, f'time_{time_step}.png'))
+    for i_game in plot_game_i_list:
+        path = os.path.join('img', f'{dt}_game_{i_game}.mp4')
+        print(f'Generate video {path}...')
+        viz = Visualisation(saved_games[i_game], env_size, n_agents, view_size=VIEW_RANGE, view_reduced=VIEW_REDUCED)
+        viz.save_all_as_video(plot_input=True, save_as=path)
 
     # What was this supposed to do? Definitely does not work like this!
     # helper = Helpers(env)

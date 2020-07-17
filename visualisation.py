@@ -1,4 +1,7 @@
 import numpy as np
+import itertools
+from tqdm import tqdm
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -34,39 +37,67 @@ def print_layers(layers, fill='\u2590\u2588\u258C'):
 
 
 class Visualisation:
-    def __init__(self, game, size_x, size_y, agent_count, view_size, view_reduced=False):
-        self._size_x = view_size[0] + 1 + view_size[1] if view_reduced else size_x
-        self._size_y = view_size[2] + 1 + view_size[3] if view_reduced else size_y
+    def __init__(self, input_maps, map_size, agent_count, view_size, view_reduced=False):
+        self._map_size_x = map_size[0]
+        self._map_size_y = map_size[1]
+        self._view_size_x = view_size[0] + 1 + view_size[1] if view_reduced else 0
+        self._view_size_y = view_size[2] + 1 + view_size[3] if view_reduced else 0
         self._agent_count = agent_count
-        self.time_steps = len(game)
+        self.time_steps = len(input_maps)
         self._next_step = False
 
-        self._game = np.array(game)
-        self._game = np.reshape(self._game[:, :, 0:self._size_x*self._size_y],
-                                (self.time_steps, agent_count, self._size_x, self._size_y))
-        # else:
-        #     self._game = np.zeros((0, agent_count, self._size_x, self._size_y))
-        #     for t in range(self.time_steps):
-        #         for i in self._agent_count:
-        #             g = np.reshape(game[t][i][0:self._size_x*self._size_y])
-        #     np.stack(self._game, g)
+        input_maps = np.array(input_maps)
+        if not view_size:
+            self._input_maps = np.reshape(input_maps,
+                                          (self.time_steps, agent_count, self._map_size_x, self._map_size_y))
+            self._full_maps = self._input_maps
+        else:
+            # Separate the real maps from further position information (current and aim position -> c_x, c_y, a_x, a_y)
+            self._input_maps = np.reshape(input_maps[:, :, 0:self._view_size_x * self._view_size_y],
+                                          (self.time_steps, agent_count, self._view_size_x, self._view_size_y))
+            c_pos = input_maps[:, :, -4:-2].astype('int64')
+            a_pos = input_maps[:, :, -2:].astype('int64')
 
+            # Rebuild the full maps of the environment and start with a empty matrix
+            # The size of a single map is padded to apply agents field of view also if a agent stands close to a corner
+            # Shape: (time_steps, agent_counts, X, Y)
+            self._full_maps = np.zeros((self.time_steps,
+                                        self._agent_count,
+                                        view_size[0] + self._map_size_x + view_size[1],
+                                        view_size[2] + self._map_size_y + view_size[3]))
+
+            # Create a list on indices for full_maps to put input_maps into it later
+            # Shape: (4, time_steps * agent_counts * map_size_x * map_size_y)
+            indices = np.array(list(itertools.product(np.arange(self.time_steps),
+                                                      np.arange(agent_count),
+                                                      np.arange(self._view_size_x),
+                                                      np.arange(self._view_size_y)))).T
+
+            # Add the current positions as offset to the indices to bring the smaller input_maps to the right positions
+            indices[2] += np.repeat(c_pos[:, :, 0], self._view_size_x * self._view_size_y)  # x offset
+            indices[3] += np.repeat(c_pos[:, :, 1], self._view_size_x * self._view_size_y)  # y offset
+
+            # Fill the full maps with values from the input maps at the right positions
+            self._full_maps[indices[0], indices[1], indices[2], indices[3]] = self._input_maps.flatten()
+
+            # Crop out the padding of the full maps
+            self._full_maps = self._full_maps[:, :, view_size[2]:-view_size[3], view_size[0]:-view_size[1]]
 
         # Obstacles
-        self._obstacle_maps = (self._game == 0.25)
+        self._obstacle_maps = (self._full_maps == 0.25)
         if not np.all(np.isin(np.count_nonzero(self._obstacle_maps, axis=(0, 1)), [0, self.time_steps * agent_count])):
             print('Warning: Positions of obstacles changed over time or are different for different agents')
 
         # Others Position
-        self._others_maps = (self._game == 0.5)
+        self._others_maps = (self._full_maps == 0.5)
 
         # Aim Positions
-        self._aim_maps = (self._game == 0.75)
+        self._aim_maps = (self._full_maps == 0.75)
         if not np.all(np.isin(np.count_nonzero(self._aim_maps, axis=0), [0, self.time_steps])):
             print('Warning: Aims changed over time')
 
         # Current Positions
-        self._current_maps = (self._game == 1.0)
+        self._current_maps = (self._full_maps == 1.0)
         if np.any(np.count_nonzero(self._current_maps, axis=(2, 3)) > 1):
             print('Warning: At least one time step there are several positions for one or more agents')
         elif np.any(np.count_nonzero(self._current_maps, axis=(2, 3)) < 1):
@@ -78,6 +109,15 @@ class Visualisation:
 
         # Color
         self._color_hue_offset = np.random.uniform()
+
+        # Latex Settings
+        custom_preamble = {
+            "text.usetex": True,
+            "text.latex.preamble": [
+                r"\usepackage{amsmath}",  # for the align enivironment
+            ],
+        }
+        plt.rcParams.update(custom_preamble)
 
     def get_map_for_agent(self, time_step=-1, agent=0, plot_input=False):
         """
@@ -92,9 +132,13 @@ class Visualisation:
         cur_map = self._current_maps[time_step, agent]
         # nxt_map = ... TODO: Next step
         others_cp = self._others_maps[time_step, agent]
-        input_map = self._game[time_step, agent]
+        full_map = self._full_maps[time_step, agent]
+        input_map = self._input_maps[time_step, agent]
 
-        agent_map = np.stack((obstacles, aim_map, cur_map, others_cp, input_map))  # TODO: Next step
+        if plot_input:
+            agent_map = [obstacles, aim_map, cur_map, others_cp, full_map, input_map]  # TODO: Next step
+        else:
+            agent_map = [obstacles, aim_map, cur_map, others_cp]  # TODO: Next step
 
         # TODO: Next step
         # if self._next_step:
@@ -127,18 +171,18 @@ class Visualisation:
 
     def _plot_layer(self, ax, layer, color):
         # Plot Layer
-        for x in range(self._size_x):
-            for y in range(self._size_y):
+        for x in range(self._map_size_x):
+            for y in range(self._map_size_y):
                 if layer[x, y]:
-                    rect = patches.Rectangle((y, self._size_x - x - 1), 1, 1, linewidth=0,
+                    rect = patches.Rectangle((y, self._map_size_x - x - 1), 1, 1, linewidth=0,
                                              edgecolor='none', facecolor=color)
                     ax.add_patch(rect)
 
         # Plot Border
-        self._plot_border(ax, self._size_x, self._size_y)
+        self._plot_border(ax, self._map_size_x, self._map_size_y)
 
-        ax.set_ylim(0, self._size_x)
-        ax.set_xlim(0, self._size_y)
+        ax.set_ylim(0, self._map_size_x)
+        ax.set_xlim(0, self._map_size_y)
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
@@ -154,7 +198,7 @@ class Visualisation:
 
     def _plot_overview(self, ax, time_step=-1, plot_agent_status=True, plot_path=True):
         # Obstacles
-        obstacles = np.any(self._obstacle_maps[-1], axis=0)
+        obstacles = np.any(self._obstacle_maps, axis=(0, 1))
         self._plot_layer(ax, obstacles, 'black')
 
         # Agents fields
@@ -177,16 +221,16 @@ class Visualisation:
 
             # Plot path
             if plot_path:
-                hist = np.where(self._current_maps[0:time_step+1, i_agent])
+                hist = np.where(self._current_maps[0:time_step + 1, i_agent])
                 offset = (1 / (self._agent_count + 1) * (i_agent + 1) * 0.5) - 0.25
                 x = hist[2] + 0.5 + offset
-                y = self._size_x - hist[1] - 0.5 + offset
+                y = self._map_size_x - hist[1] - 0.5 + offset
                 ax.plot(x, y, '-', color=color, zorder=0)
 
             # Plot start position
             if start_pos is not None and start_pos[0].shape[0] != 0:
                 x = start_pos[1] + 0.2
-                y = self._size_x - start_pos[0] - 1 + 0.15
+                y = self._map_size_x - start_pos[0] - 1 + 0.15
                 self._plot_label(ax, x, y, "S", color)
             else:
                 print('Warning: No start position')
@@ -194,7 +238,7 @@ class Visualisation:
             # Plot aim position
             for y, x in np.argwhere(self._aim_maps[time_step, i_agent]):
                 x = x + 0.2
-                y = self._size_x - y - 1 + 0.15
+                y = self._map_size_x - y - 1 + 0.15
                 self._plot_label(ax, x, y, "E", color)
 
             # Plot agent status
@@ -203,17 +247,90 @@ class Visualisation:
                     if self._agents_conditions[i_agent] == status:
                         for y, x in self._current_maps[time_step, i_agent]:
                             x = x + 0.2
-                            y = self._size_x - y - 1 + 0.15
+                            y = self._map_size_x - y - 1 + 0.15
                             self._plot_label(ax, x, y, symbol, 'black')
 
         # Plot Border
-        self._plot_border(ax, self._size_x, self._size_y)
+        self._plot_border(ax, self._map_size_x, self._map_size_y)
 
-        ax.set_ylim(0, self._size_x)
-        ax.set_xlim(0, self._size_y)
+        ax.set_ylim(0, self._map_size_x)
+        ax.set_xlim(0, self._map_size_y)
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
+
+    def _plot_info(self, ax, time_step):
+        text = r'\begin{align*}'
+        text += r't&={}\\'.format(time_step)
+        text += r'size_{{map}}&=\left[{}\times{}\right]\\'.format(self._map_size_x, self._map_size_y)
+        if self._view_size_x > 0:
+            text += r'size_{{view}}&=\left[{}\times{}\right]\\'.format(self._view_size_x, self._view_size_y)
+        text += r'\end{align*}'
+
+        ax.text(0.3, 0, text, fontsize=18, ha='left', va='center')
+
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-1, 1)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.axis('off')
+
+    def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False):
+        # Create outer grid
+        outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
+        outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
+
+        # Plot overview on the left side
+        left_grid = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[0],
+                                                     wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[5, 1])
+        ax = plt.Subplot(fig, left_grid[0])
+        self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
+        ax.set_title('Overview', fontsize=15)
+        fig.add_subplot(ax)
+
+        ax = plt.Subplot(fig, left_grid[1])
+        self._plot_info(ax, time_step)
+        fig.add_subplot(ax)
+
+        # Plot Layers
+        if self._next_step:
+            nr_layers = 6
+            layer_names = ['Obstacles', 'Aim', 'Agent\'s\nCurrent Pos.', 'Agent\'s\nNext Pos.',
+                           'Others\nCurrent Pos.', 'Others\nNext Pos.']
+        else:
+            nr_layers = 4
+            layer_names = ['Obstacles', 'Aim', 'Agent\'s\nPosition', 'Others\nPosition']
+        if plot_input:
+            nr_layers += 2
+            layer_names.append('Full Map\nNet Input')
+            layer_names.append('Reduced\nNet Input')
+        agents_grid = gridspec.GridSpecFromSubplotSpec(self._agent_count, nr_layers, subplot_spec=outer[1],
+                                                       wspace=0.1, hspace=0.1)
+        for i_agent in range(self._agent_count):
+            layers = self.get_map_for_agent(time_step=time_step, agent=i_agent, plot_input=plot_input)
+            for i_layer, layer in enumerate(layers):
+                i_grid = i_agent * nr_layers + i_layer
+                ax = plt.Subplot(fig, agents_grid[i_grid])
+                if plot_input and i_layer + 2 >= nr_layers:
+                    self._plot_heatmap(ax, layer)
+                else:
+                    color = self._get_plot_color(i_agent)
+                    self._plot_layer(ax, layer, color)
+
+                # layer label
+                if ax.is_first_row():
+                    ax.set_xlabel(layer_names[i_layer], fontsize=15)
+                    ax.xaxis.set_label_position('top')
+
+                # agent label
+                if ax.is_first_col():
+                    ax.set_ylabel('Agent {}'.format(i_agent), fontsize=15)
+
+                fig.add_subplot(ax)
+
+        plt.subplots_adjust(wspace=0, hspace=0)
+
+        return fig
 
     def plot_layer(self, layer, block=True, save_as=None):
         """
@@ -254,7 +371,8 @@ class Visualisation:
         else:
             plt.show(block=block)
 
-    def plot_all(self, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False, block=True, save_as=None):
+    def plot_all(self, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False,
+                 block=True, save_as=None):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
@@ -262,51 +380,8 @@ class Visualisation:
         # Disable tools and create figure, axes and outer grid
         mpl.rcParams['toolbar'] = 'None'
         fig = plt.figure(figsize=(17, 10))
-        outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
-        outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
-
-        # Plot overview on the left side
-        ax = plt.Subplot(fig, outer[0])
-        self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
-        ax.set_title('Overview', fontsize=15)
-        fig.add_subplot(ax)
-
-        # Plot Layers
-        if self._next_step:
-            nr_layers = 6
-            layer_names = ['Obstacles', 'Aim', 'Agent\'s\nCurrent Pos.', 'Agent\'s\nNext Pos.',
-                           'Others\nCurrent Pos.', 'Others\nNext Pos.']
-        else:
-            nr_layers = 4
-            layer_names = ['Obstacles', 'Aim', 'Agent\'s Pos.', 'Others Pos.']
-        if plot_input:
-            nr_layers += 1
-            layer_names.append('Input')
-        agents_grid = gridspec.GridSpecFromSubplotSpec(self._agent_count, nr_layers, subplot_spec=outer[1],
-                                                       wspace=0.1, hspace=0.1)
-        for i_agent in range(self._agent_count):
-            layers = self.get_map_for_agent(time_step=time_step, agent=i_agent, plot_input=plot_input)
-            for i_layer, layer in enumerate(layers):
-                i_grid = i_agent * nr_layers + i_layer
-                ax = plt.Subplot(fig, agents_grid[i_grid])
-                if plot_input and i_layer+1 == nr_layers:
-                    self._plot_heatmap(ax, layer)
-                else:
-                    color = self._get_plot_color(i_agent)
-                    self._plot_layer(ax, layer, color)
-
-                # layer label
-                if ax.is_first_row():
-                    ax.set_xlabel(layer_names[i_layer], fontsize=15)
-                    ax.xaxis.set_label_position('top')
-
-                # agent label
-                if ax.is_first_col():
-                    ax.set_ylabel('Agent {}'.format(i_agent), fontsize=15)
-
-                fig.add_subplot(ax)
-
-        plt.subplots_adjust(wspace=0, hspace=0)
+        fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
+                             plot_path=plot_path, plot_input=plot_input)
 
         if save_as:
             fig.savefig(save_as)
@@ -314,9 +389,22 @@ class Visualisation:
         else:
             plt.show(block=block)
 
+    def save_all_as_video(self, plot_agent_status=True, plot_path=True, plot_input=False, save_as='all.mp4'):
+        frame_array = []
+        for time_step in tqdm(range(self.time_steps)):
+            fig = plt.figure(figsize=(17, 10))
+            fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
+                                 plot_path=plot_path, plot_input=plot_input)
+            frame_array.append(Helpers.fig_to_data(fig))
+
+        w = imageio.get_writer(save_as, fps=6, quality=6)
+        for i in range(len(frame_array)):
+            w.append_data(frame_array[i])
+        w.close()
+
 
 class Helpers:
-    def __init__(self,  env: Game):
+    def __init__(self, env: Game):
         self.env = env
 
     def show_hist_map(self, hist):
@@ -325,7 +413,8 @@ class Helpers:
                 h = hist[i].astype(np.int)
 
                 if np.max(hist[i]) == 1:
-                    plt.imshow(hist[i].reshape(self.env.board_size[0], self.env.board_size[1]), cmap='hot', interpolation='nearest')
+                    plt.imshow(hist[i].reshape(self.env.board_size[0], self.env.board_size[1]), cmap='hot',
+                               interpolation='nearest')
                 else:
                     plt.imshow(np.zeros((self.env.board_size[0], self.env.board_size[1])))
                 plt.show()
@@ -342,7 +431,8 @@ class Helpers:
 
         return m.astype(np.int)
 
-    def fig_to_data(self, fig):
+    @staticmethod
+    def fig_to_data(fig):
         fig.canvas.draw()
 
         w, h = fig.canvas.get_width_height()
@@ -361,7 +451,8 @@ class Helpers:
                 h = hist[i].astype(np.int)
                 fig = plt.figure()
                 if np.max(hist[i]) == 1:
-                    plt.imshow(hist[i].reshape(self.env.board_size[0], self.env.board_size[1]), cmap='hot', interpolation='nearest')
+                    plt.imshow(hist[i].reshape(self.env.board_size[0], self.env.board_size[1]), cmap='hot',
+                               interpolation='nearest')
                 else:
                     plt.imshow(np.zeros((self.env.board_size[0], self.env.board_size[1])))
                 frame_array.append(self.fig_to_data(fig))
