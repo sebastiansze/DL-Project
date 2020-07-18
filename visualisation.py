@@ -37,17 +37,19 @@ def print_layers(layers, fill='\u2590\u2588\u258C'):
 
 
 class Visualisation:
-    def __init__(self, input_maps, map_size, agent_count, view_size, view_reduced=False):
+    def __init__(self, input_maps, map_size, agent_count, view_padding, view_reduced=False):
         self._map_size_x = map_size[0]
         self._map_size_y = map_size[1]
-        self._view_size_x = view_size[0] + 1 + view_size[1] if view_reduced else 0
-        self._view_size_y = view_size[2] + 1 + view_size[3] if view_reduced else 0
+        self._view_padding = view_padding
+        self._view_size_x = view_padding[0] + 1 + view_padding[1] if view_reduced else 0
+        self._view_size_y = view_padding[2] + 1 + view_padding[3] if view_reduced else 0
+        self._view_reduced = view_reduced
         self._agent_count = agent_count
         self.time_steps = len(input_maps)
         self._next_step = False
 
         input_maps = np.array(input_maps)
-        if not view_size:
+        if not view_reduced:
             self._input_maps = np.reshape(input_maps,
                                           (self.time_steps, agent_count, self._map_size_x, self._map_size_y))
             self._full_maps = self._input_maps
@@ -55,16 +57,18 @@ class Visualisation:
             # Separate the real maps from further position information (current and aim position -> c_x, c_y, a_x, a_y)
             self._input_maps = np.reshape(input_maps[:, :, 0:self._view_size_x * self._view_size_y],
                                           (self.time_steps, agent_count, self._view_size_x, self._view_size_y))
-            c_pos = input_maps[:, :, -4:-2].astype('int64')
-            a_pos = input_maps[:, :, -2:].astype('int64')
+            self._current_pos = input_maps[:, :, -4:-2].astype('int64')
+            self._aim_pos = input_maps[:, :, -2:].astype('int64')
+            if np.unique(self._current_pos, axis=0).shape[0] > 1:
+                print('Warning: Aim positions changed over time')
 
             # Rebuild the full maps of the environment and start with a empty matrix
             # The size of a single map is padded to apply agents field of view also if a agent stands close to a corner
             # Shape: (time_steps, agent_counts, X, Y)
             self._full_maps = np.zeros((self.time_steps,
                                         self._agent_count,
-                                        view_size[0] + self._map_size_x + view_size[1],
-                                        view_size[2] + self._map_size_y + view_size[3]))
+                                        view_padding[0] + self._map_size_x + view_padding[1],
+                                        view_padding[2] + self._map_size_y + view_padding[3]))
 
             # Create a list on indices for full_maps to put input_maps into it later
             # Shape: (4, time_steps * agent_counts * map_size_x * map_size_y)
@@ -74,14 +78,14 @@ class Visualisation:
                                                       np.arange(self._view_size_y)))).T
 
             # Add the current positions as offset to the indices to bring the smaller input_maps to the right positions
-            indices[2] += np.repeat(c_pos[:, :, 0], self._view_size_x * self._view_size_y)  # x offset
-            indices[3] += np.repeat(c_pos[:, :, 1], self._view_size_x * self._view_size_y)  # y offset
+            indices[2] += np.repeat(self._current_pos[:, :, 0], self._view_size_x * self._view_size_y)  # x offset
+            indices[3] += np.repeat(self._current_pos[:, :, 1], self._view_size_x * self._view_size_y)  # y offset
 
             # Fill the full maps with values from the input maps at the right positions
             self._full_maps[indices[0], indices[1], indices[2], indices[3]] = self._input_maps.flatten()
 
             # Crop out the padding of the full maps
-            self._full_maps = self._full_maps[:, :, view_size[2]:-view_size[3], view_size[0]:-view_size[1]]
+            self._full_maps = self._full_maps[:, :, view_padding[2]:-view_padding[3], view_padding[0]:-view_padding[1]]
 
         # Obstacles
         self._obstacle_maps = (self._full_maps == 0.25)
@@ -94,7 +98,7 @@ class Visualisation:
         # Aim Positions
         self._aim_maps = (self._full_maps == 0.75)
         if not np.all(np.isin(np.count_nonzero(self._aim_maps, axis=0), [0, self.time_steps])):
-            print('Warning: Aims changed over time')
+            print('Warning: Aim maps changed over time')
 
         # Current Positions
         self._current_maps = (self._full_maps == 1.0)
@@ -148,38 +152,51 @@ class Visualisation:
 
         return agent_map
 
-    @staticmethod
-    def _plot_label(ax, x, y, text, color):
-        prop = FontProperties(family='monospace', weight='black')
-        tp = TextPath((x, y), text, prop=prop, size=1)
-        polygon = tp.to_polygons()
-        for a in polygon:
-            patch = patches.Polygon(a, facecolor=color, edgecolor='black', linewidth=1)
-            ax.add_patch(patch)
-
-    @staticmethod
-    def _plot_border(ax, size_x, size_y):
-        border = patches.Rectangle((0, 0), size_y, size_x, linewidth=5, edgecolor='black',
-                                   facecolor='none')
-        ax.add_patch(border)
-
     def _get_plot_color(self, agent_index, next_step=False):
         hue = agent_index / self._agent_count + self._color_hue_offset
         saturation = 1.0 if not next_step else 0.1
         value = 0.7 if not next_step else 0.9
         return colorsys.hsv_to_rgb(hue, saturation, value)
 
-    def _plot_layer(self, ax, layer, color):
+    def _plot_map_border(self, ax):
+        border = patches.Rectangle((0, 0), self._map_size_y, self._map_size_x, linewidth=5, edgecolor='black',
+                                   facecolor='none')
+        ax.add_patch(border)
+
+    def _plot_view_border(self, ax, pos):
+        start = (pos[1] - self._view_padding[1],
+                 self._map_size_x - pos[0] - 1 - self._view_padding[3])
+        border = patches.Rectangle(start, self._view_size_y, self._view_size_x, linewidth=2, edgecolor='grey',
+                                   facecolor='none')
+        ax.add_patch(border)
+
+    def _plot_rect_at_pos(self, ax, x, y, color):
+        rect = patches.Rectangle((y, self._map_size_x - x - 1), 1, 1, linewidth=0,
+                                 edgecolor='none', facecolor=color)
+        ax.add_patch(rect)
+
+    def _plot_label(self, ax, x, y, text, color):
+        x = self._map_size_x - x - 1
+        prop = FontProperties(family='monospace', weight='black')
+        tp = TextPath((y, x), text, prop=prop, size=1)
+        polygon = tp.to_polygons()
+        for a in polygon:
+            patch = patches.Polygon(a, facecolor=color, edgecolor='black', linewidth=1, zorder=10)
+            ax.add_patch(patch)
+
+    def _plot_layer(self, ax, layer, color, plot_view_filed=False, curr_pos=None):
         # Plot Layer
         for x in range(self._map_size_x):
             for y in range(self._map_size_y):
                 if layer[x, y]:
-                    rect = patches.Rectangle((y, self._map_size_x - x - 1), 1, 1, linewidth=0,
-                                             edgecolor='none', facecolor=color)
-                    ax.add_patch(rect)
+                    self._plot_rect_at_pos(ax, x, y, color)
+
+        # Plot view field
+        if plot_view_filed:
+            self._plot_view_border(ax, curr_pos)
 
         # Plot Border
-        self._plot_border(ax, self._map_size_x, self._map_size_y)
+        self._plot_map_border(ax)
 
         ax.set_ylim(0, self._map_size_x)
         ax.set_xlim(0, self._map_size_y)
@@ -196,6 +213,22 @@ class Visualisation:
         ax.set_xticks([])
         ax.set_yticks([])
 
+    def _plot_info(self, ax, time_step):
+        text = r'\begin{align*}'
+        text += r't&={}\\'.format(time_step)
+        text += r'size_{{map}}&=\left[{}\times{}\right]\\'.format(self._map_size_x, self._map_size_y)
+        if self._view_reduced:
+            text += r'size_{{view}}&=\left[{}\times{}\right]\\'.format(self._view_size_x, self._view_size_y)
+        text += r'\end{align*}'
+
+        ax.text(0.3, 0, text, fontsize=18, ha='left', va='center')
+
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-1, 1)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.axis('off')
+
     def _plot_overview(self, ax, time_step=-1, plot_agent_status=True, plot_path=True):
         # Obstacles
         obstacles = np.any(self._obstacle_maps, axis=(0, 1))
@@ -203,9 +236,15 @@ class Visualisation:
 
         # Agents fields
         for i_agent in range(self._agent_count):
-            start_pos = np.where(self._current_maps[0, i_agent])
-            aim_map = self._aim_maps[time_step, i_agent]
-            cur_map = self._current_maps[time_step, i_agent]
+            if self._view_reduced:
+                start_pos = [self._current_pos[0, i_agent]]
+                cur_pos = [self._current_pos[time_step, i_agent]]
+                aim_pos = [self._aim_pos[time_step, i_agent]]
+            else:
+                start_pos = np.argwhere(self._current_maps[0, i_agent])
+                cur_pos = np.argwhere(self._current_maps[time_step, i_agent])
+                aim_pos = np.argwhere(self._aim_maps[time_step, i_agent])
+
             # nxt_map = ... TODO: Next step
 
             color = self._get_plot_color(i_agent, next_step=False)
@@ -217,7 +256,8 @@ class Visualisation:
             #     self._plot_layer(ax, nxt_map, color_next)
 
             # Plot current position
-            self._plot_layer(ax, cur_map, color)
+            for x, y in cur_pos:
+                self._plot_rect_at_pos(ax, x, y, color)
 
             # Plot path
             if plot_path:
@@ -228,52 +268,31 @@ class Visualisation:
                 ax.plot(x, y, '-', color=color, zorder=0)
 
             # Plot start position
-            if start_pos is not None and start_pos[0].shape[0] != 0:
-                x = start_pos[1] + 0.2
-                y = self._map_size_x - start_pos[0] - 1 + 0.15
-                self._plot_label(ax, x, y, "S", color)
-            else:
-                print('Warning: No start position')
+            # if start_pos is not None and start_pos[0].shape[0] != 0:
+            for x, y in start_pos:
+                self._plot_label(ax, x-0.15, y+0.2, "S", color)
+            # else:
+            #     print('Warning: No start position')
 
             # Plot aim position
-            for y, x in np.argwhere(self._aim_maps[time_step, i_agent]):
-                x = x + 0.2
-                y = self._map_size_x - y - 1 + 0.15
-                self._plot_label(ax, x, y, "E", color)
+            for x, y in aim_pos:
+                self._plot_label(ax, x-0.15, y+0.2, "E", color)
 
             # Plot agent status
             if plot_agent_status:
                 for status, symbol in zip(['a', 's', '3', 't'], ['\u2713', '\u2717', '\u2717', '\u2717']):  # \u2620
                     if self._agents_conditions[i_agent] == status:
-                        for y, x in self._current_maps[time_step, i_agent]:
-                            x = x + 0.2
-                            y = self._map_size_x - y - 1 + 0.15
-                            self._plot_label(ax, x, y, symbol, 'black')
+                        for x, y in self._current_maps[time_step, i_agent]:
+                            self._plot_label(ax, x-0.15, y+0.2, symbol, 'black')
 
         # Plot Border
-        self._plot_border(ax, self._map_size_x, self._map_size_y)
+        self._plot_map_border(ax)
 
         ax.set_ylim(0, self._map_size_x)
         ax.set_xlim(0, self._map_size_y)
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
-
-    def _plot_info(self, ax, time_step):
-        text = r'\begin{align*}'
-        text += r't&={}\\'.format(time_step)
-        text += r'size_{{map}}&=\left[{}\times{}\right]\\'.format(self._map_size_x, self._map_size_y)
-        if self._view_size_x > 0:
-            text += r'size_{{view}}&=\left[{}\times{}\right]\\'.format(self._view_size_x, self._view_size_y)
-        text += r'\end{align*}'
-
-        ax.text(0.3, 0, text, fontsize=18, ha='left', va='center')
-
-        ax.set_xlim(0, 1)
-        ax.set_ylim(-1, 1)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.axis('off')
 
     def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False):
         # Create outer grid
@@ -315,7 +334,11 @@ class Visualisation:
                     self._plot_heatmap(ax, layer)
                 else:
                     color = self._get_plot_color(i_agent)
-                    self._plot_layer(ax, layer, color)
+                    if self._view_reduced:
+                        self._plot_layer(ax, layer, color, plot_view_filed=True,
+                                         curr_pos=self._current_pos[time_step, i_agent])
+                    else:
+                        self._plot_layer(ax, layer, color)
 
                 # layer label
                 if ax.is_first_row():
