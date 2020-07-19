@@ -130,7 +130,7 @@ class Visualisation:
 
         # Latex Settings
         custom_preamble = {
-            "text.usetex": True,
+             "text.usetex": True,
             "text.latex.preamble": [
                 r"\usepackage{amsmath}",  # for the align enivironment
             ],
@@ -217,6 +217,7 @@ class Visualisation:
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
+        ax.axis('off')
 
     def _plot_heatmap(self, ax, map):
         ax.imshow(map, cmap='hot', interpolation='nearest', vmin=0, vmax=1)
@@ -226,6 +227,7 @@ class Visualisation:
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
+        ax.axis('off')
 
     def _plot_info(self, ax, time_step):
         text = r'\begin{align*}'
@@ -307,21 +309,21 @@ class Visualisation:
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
+        ax.axis('off')
 
     def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False):
         # Create outer grid
         outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
         outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
 
-        # Plot overview on the left side
-        left_grid = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[0],
-                                                     wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[5, 1])
-        ax = plt.Subplot(fig, left_grid[0])
+        # Plot overview and info on the left side
+        left_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer[0],
+                                                     wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 6, 1])
+        ax = plt.Subplot(fig, left_grid[1])
         self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
         ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
-
-        ax = plt.Subplot(fig, left_grid[1])
+        ax = plt.Subplot(fig, left_grid[2])
         self._plot_info(ax, time_step)
         fig.add_subplot(ax)
 
@@ -428,7 +430,7 @@ class Visualisation:
 
     def save_all_as_video(self, plot_agent_status=True, plot_path=True, plot_input=False, save_as='all.mp4'):
         def draw_frame(ts):
-            fig, ax = plt.subplots(figsize=(17, 10))
+            fig = plt.figure(figsize=(17, 10))
             fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
                                  plot_path=plot_path, plot_input=plot_input)
             return fig_to_data(fig)

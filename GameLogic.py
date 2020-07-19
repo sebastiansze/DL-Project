@@ -155,6 +155,8 @@ class Game:
                 if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]\
                         and m[player.position.x, player.position.y] != 0.75:
                     m[player.position.x, player.position.y] = 0.5
+                # Show aims of other agents as an obstacle of this agent
+                m[player.aim.x, player.aim.y] = 0.25
         #print("Viewed  at ", str(playerSav[0]) + " " + str(playerSav[1]))
         observation = self.getView(m, self.viewSize, (playerSav[0], playerSav[1]))
 

@@ -121,12 +121,13 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
     # plt.plot(avg_score_saver)
     # plt.show()
 
-    plot_game_i_list = range(0, n_games, 20) # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
+    plot_game_i_list = range(n_games)  # range(0, n_games, 20) # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     for i_game in plot_game_i_list:
+        viz = Visualisation(saved_games[i_game], env_size, n_agents, view_padding=VIEW_RANGE, view_reduced=VIEW_REDUCED)
+        # if viz.time_steps > 30:
         path = os.path.join('img', f'{dt}_game_{i_game}.mp4')
         print(f'Generate video {path}...')
-        viz = Visualisation(saved_games[i_game], env_size, n_agents, view_padding=VIEW_RANGE, view_reduced=VIEW_REDUCED)
         viz.save_all_as_video(plot_input=True, save_as=path)
 
     # What was this supposed to do? Definitely does not work like this!
