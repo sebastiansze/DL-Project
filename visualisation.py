@@ -1,5 +1,7 @@
-import numpy as np
+import os
+import pickle
 import itertools
+import numpy as np
 from tqdm import tqdm
 
 import matplotlib as mpl
@@ -441,7 +443,7 @@ class Visualisation:
         else:
             plt.show(block=block)
 
-    def save_all_as_video(self, plot_agent_status=True, plot_path=True, plot_input=False, save_as='all.mp4'):
+    def save_all_as_video(self, dt, i_game, plot_agent_status=True, plot_path=True, plot_input=False):
         def draw_frame(ts):
             fig = plt.figure(figsize=(17, 10))
             fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
@@ -458,10 +460,33 @@ class Visualisation:
         # pool.close()
         # pool.join()
 
-        w = imageio.get_writer(save_as, fps=6, quality=6)
+        directory = os.path.join('img', dt)
+
+        # Check if directory for images exists
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}.mp4'), fps=6, quality=6)
         for i in range(len(frame_array)):
             w.append_data(frame_array[i])
         w.close()
+
+    def save(self, dt, i_game):
+        directory = os.path.join('viz', dt)
+
+        # Check if directory for viz exists
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        f = open(os.path.join(directory, f'{dt}_game_{i_game}.viz'), 'wb')
+        pickle.dump(self, f, 2)
+        f.close()
+
+    @staticmethod
+    def load(path):
+        f = open(path, 'rb')
+        viz = pickle.load(f)
+        f.close()
+        return viz
 
 
 class Helpers:
@@ -515,3 +540,11 @@ class Helpers:
     #     before = """<video width="864" height="576" controls><source src="""
     #     end = """ type="video/mp4"></video>"""
     #     return HTML(before + path + end)
+
+
+if __name__ == "__main__":
+    viz_file_name = "2020-07-19-21-46-31"
+    viz = Visualisation.load(f'{viz_file_name}.viz')
+    path = os.path.join('img', f'{viz_file_name}.mp4')
+    print(f'Generate video {path}...')
+    viz.save_all_as_video(plot_input=True, save_as=path)

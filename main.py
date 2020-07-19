@@ -22,7 +22,7 @@ def play():
     pass
 
 
-def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False):
+def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False):
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -48,20 +48,22 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
             agent.load_models()
         agents.append(agent)
 
-    num_obstacles = np.random.randint(15, 25)
-    obstacles = []
-    for i in range(num_obstacles):
-        obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
-
     # Main training loop
     for i_game in tqdm(range(n_games)):
         scores = np.zeros(n_agents)
         avg_scores = np.zeros(n_agents)
         agent_in_final_state = np.full(n_agents, False)
+
+        num_obstacles = np.random.randint(15, 25)
+        obstacles = []
+        for i in range(num_obstacles):
+            obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
+        saved_obstacles.append(np.array([o.to_numpy() for o in obstacles]))
+
         env = Game(obstacles, None, env_size, MAX_REWARD, viewReduced=VIEW_REDUCED, viewSize=VIEW_RANGE)
-        saved_obstacles.append(np.array([o.to_numpy() for o in env.obstacles]))
         for i in range(n_agents):
             env.add_player()
+
         observations = env.reset()
         game_sav = [observations]
         time_step = 0
@@ -123,16 +125,16 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
     # plt.plot(avg_score_saver)
     # plt.show()
 
-    plot_game_i_list = range(0, n_games, 20) # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
+    plot_game_i_list = range(n_games-1, 0, -20)  # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     for i_game in plot_game_i_list:
         viz = Visualisation(saved_games[i_game], env_size, n_agents,
                             view_padding=VIEW_RANGE, view_reduced=VIEW_REDUCED,
                             truth_obstacles=saved_obstacles[i_game])
         # if viz.time_steps > 30:
-        path = os.path.join('img', f'{dt}_game_{i_game}.mp4')
-        print(f'Generate video {path}...')
-        viz.save_all_as_video(plot_input=True, save_as=path)
+        print(f'Generate video {dt}_game_{i_game}.mp4 ...')
+        viz.save_all_as_video(dt, i_game, plot_input=True)
+        # viz.save(dt, i_game)
 
     # What was this supposed to do? Definitely does not work like this!
     # helper = Helpers(env)
@@ -142,6 +144,8 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
     # fig, ax = plt.subplots(figsize=(env_size[1]+3, env_size[0]))
     # sns.heatmap(helper.show_reward(saved_games[-randomgame][0],elemMax=True).reshape(boardSize[0], boardSize[1]), annot=True, fmt="d")
     # plt.show()
+
+    print('Done')
 
 
 if __name__ == '__main__':
