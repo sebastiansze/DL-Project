@@ -9,6 +9,7 @@ import matplotlib.patches as patches
 from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 # from IPython.display import HTML
+from multiprocessing.dummy import Pool as ThreadPool
 import imageio
 import colorsys
 from GameLogic import Game, Point
@@ -34,6 +35,19 @@ def print_layers(layers, fill='\u2590\u2588\u258C'):
                     print('   ', end='')
             print('\u2503')
     print('\u2517' + '\u2501' * (layers.shape[2] * 3) + '\u251B')
+
+
+def fig_to_data(fig):
+    fig.canvas.draw()
+
+    w, h = fig.canvas.get_width_height()
+
+    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    buf.shape = (h, w, 3)
+
+    buf = np.roll(buf, 3, axis=2)
+    plt.close()
+    return buf
 
 
 class Visualisation:
@@ -413,12 +427,21 @@ class Visualisation:
             plt.show(block=block)
 
     def save_all_as_video(self, plot_agent_status=True, plot_path=True, plot_input=False, save_as='all.mp4'):
-        frame_array = []
-        for time_step in tqdm(range(self.time_steps)):
-            fig = plt.figure(figsize=(17, 10))
-            fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
+        def draw_frame(ts):
+            fig, ax = plt.subplots(figsize=(17, 10))
+            fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
                                  plot_path=plot_path, plot_input=plot_input)
-            frame_array.append(Helpers.fig_to_data(fig))
+            return fig_to_data(fig)
+
+        # Make the Pool of workers
+        # pool = ThreadPool(4)
+
+        # frame_array = pool.map(draw_frame_test, list(range(10)))
+        frame_array = [draw_frame(ts) for ts in tqdm(range(self.time_steps))]
+
+        # Close the pool and wait for the work to finish
+        # pool.close()
+        # pool.join()
 
         w = imageio.get_writer(save_as, fps=6, quality=6)
         for i in range(len(frame_array)):
@@ -454,19 +477,6 @@ class Helpers:
 
         return m.astype(np.int)
 
-    @staticmethod
-    def fig_to_data(fig):
-        fig.canvas.draw()
-
-        w, h = fig.canvas.get_width_height()
-
-        buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        buf.shape = (h, w, 3)
-
-        buf = np.roll(buf, 3, axis=2)
-        plt.close()
-        return buf
-
     def show_hist_ani(self, hist):
         frame_array = []
         for i in range(len(hist)):
@@ -478,7 +488,7 @@ class Helpers:
                                interpolation='nearest')
                 else:
                     plt.imshow(np.zeros((self.env.board_size[0], self.env.board_size[1])))
-                frame_array.append(self.fig_to_data(fig))
+                frame_array.append(fig_to_data(fig))
         #
 
         w = imageio.get_writer('output.mp4', fps=6, quality=6)
