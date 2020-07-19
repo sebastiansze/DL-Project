@@ -54,7 +54,7 @@ def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
         avg_scores = np.zeros(n_agents)
         agent_in_final_state = np.full(n_agents, False)
 
-        num_obstacles = np.random.randint(15, 25)
+        num_obstacles = np.random.randint(15, 25) - 2 * n_agents
         obstacles = []
         for i in range(num_obstacles):
             obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
@@ -132,7 +132,8 @@ def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
                             view_padding=VIEW_RANGE, view_reduced=VIEW_REDUCED,
                             truth_obstacles=saved_obstacles[i_game])
         # if viz.time_steps > 30:
-        print(f'Generate video {dt}_game_{i_game}.mp4 ...')
+        print(f'Generate visual output for game {i_game} of session {dt}...')
+        # viz.plot_all(plot_input=True, save_as=os.path.join('img', f'{dt}_game_{i_game}.png'))
         viz.save_all_as_video(dt, i_game, plot_input=True)
         # viz.save(dt, i_game)
 

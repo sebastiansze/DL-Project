@@ -249,10 +249,10 @@ class Visualisation:
             text += r'size_{{view}}&=\left[{}\times{}\right]\\'.format(self._view_size_x, self._view_size_y)
         text += r'\end{align*}'
 
-        ax.text(0.3, 0, text, fontsize=18, ha='left', va='center')
+        ax.text(0.3, 0.75, text, fontsize=18, ha='left', va='center')
 
         ax.set_xlim(0, 1)
-        ax.set_ylim(-1, 1)
+        ax.set_ylim(0, 1)
         ax.set_xticks([])
         ax.set_yticks([])
         ax.axis('off')
@@ -433,21 +433,30 @@ class Visualisation:
         """
         # Disable tools and create figure, axes and outer grid
         mpl.rcParams['toolbar'] = 'None'
-        fig = plt.figure(figsize=(17, 10))
+        img_width = 1920
+        img_height = 1080
+        dpi = 100
+        fig = plt.figure(figsize=(img_width/dpi, img_height/dpi), dpi=dpi)
         fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
                              plot_path=plot_path, plot_input=plot_input)
+        fig.set_size_inches(img_width/dpi, img_height/dpi)
 
         if save_as:
-            fig.savefig(save_as)
+            fig.savefig(save_as, dpi=dpi)
             plt.close(fig)
         else:
             plt.show(block=block)
 
     def save_all_as_video(self, dt, i_game, plot_agent_status=True, plot_path=True, plot_input=False):
+        img_width = 1920
+        img_height = 1080
+        dpi = 100
+
         def draw_frame(ts):
-            fig = plt.figure(figsize=(17, 10))
+            fig = plt.figure(figsize=(img_width/dpi, img_height/dpi), dpi=dpi)
             fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
                                  plot_path=plot_path, plot_input=plot_input)
+            fig.set_size_inches(img_width / dpi, img_height / dpi)
             return fig_to_data(fig)
 
         # Make the Pool of workers
@@ -466,7 +475,7 @@ class Visualisation:
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}.mp4'), fps=6, quality=6)
+        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}.mp4'), fps=4, quality=6)
         for i in range(len(frame_array)):
             w.append_data(frame_array[i])
         w.close()
