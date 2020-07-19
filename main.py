@@ -125,7 +125,10 @@ def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
     # plt.plot(avg_score_saver)
     # plt.show()
 
-    plot_game_i_list = range(n_games-1, 0, -20)  # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
+    plot_game_i_list = np.arange(n_games-1, 0, -20)
+    plot_game_i_list = np.concatenate([plot_game_i_list, np.argsort(-1 * np.max(score_saver, axis=1))[:5]])
+    plot_game_i_list = np.unique(plot_game_i_list)
+    print('Visualize this games:{}'.format(plot_game_i_list))
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     for i_game in plot_game_i_list:
         viz = Visualisation(saved_games[i_game], env_size, n_agents,
