@@ -163,7 +163,10 @@ class Game:
         #print(observation)
         if self.viewReduced:
 
-            data = np.array([playerSav[0], playerSav[1], aimSav[0], aimSav[1]])
+            data = np.array([playerSav[0] / self.board_size[0],
+                             playerSav[1] / self.board_size[1],
+                             aimSav[0] / self.board_size[0],
+                             aimSav[1] / self.board_size[1]])
             m = np.concatenate((observation, data), axis=None)
 
         return m

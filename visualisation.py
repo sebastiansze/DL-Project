@@ -71,8 +71,8 @@ class Visualisation:
             # Separate the real maps from further position information (current and aim position -> c_x, c_y, a_x, a_y)
             self._input_maps = np.reshape(input_maps[:, :, 0:self._view_size_x * self._view_size_y],
                                           (self.time_steps, agent_count, self._view_size_x, self._view_size_y))
-            self._current_pos = input_maps[:, :, -4:-2].astype('int64')
-            self._aim_pos = input_maps[:, :, -2:].astype('int64')
+            self._current_pos = (input_maps[:, :, -4:-2] * map_size).round().astype('int64')
+            self._aim_pos = (input_maps[:, :, -2:] * map_size).round().astype('int64')
             if np.unique(self._current_pos, axis=0).shape[0] > 1:
                 print('Warning: Aim positions changed over time')
 
@@ -217,7 +217,10 @@ class Visualisation:
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.axis('off')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
 
     def _plot_heatmap(self, ax, map):
         ax.imshow(map, cmap='hot', interpolation='nearest', vmin=0, vmax=1)
