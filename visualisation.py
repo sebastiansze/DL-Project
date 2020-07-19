@@ -51,7 +51,7 @@ def fig_to_data(fig):
 
 
 class Visualisation:
-    def __init__(self, input_maps, map_size, agent_count, view_padding, view_reduced=False):
+    def __init__(self, input_maps, map_size, agent_count, view_padding, view_reduced=False, truth_obstacles=None):
         self._map_size_x = map_size[0]
         self._map_size_y = map_size[1]
         self._view_padding = view_padding
@@ -105,6 +105,10 @@ class Visualisation:
         self._obstacle_maps = (self._full_maps == 0.25)
         if not np.all(np.isin(np.count_nonzero(self._obstacle_maps, axis=(0, 1)), [0, self.time_steps * agent_count])):
             print('Warning: Positions of obstacles changed over time or are different for different agents')
+        if isinstance(truth_obstacles, type(None)):
+            self._obstacle_pos = np.argwhere(np.any(self._obstacle_maps, axis=(0, 1)))
+        else:
+            self._obstacle_pos = truth_obstacles
 
         # Others Position
         self._others_maps = (self._full_maps == 0.5)
@@ -230,7 +234,10 @@ class Visualisation:
         ax.set_aspect('equal')
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.axis('off')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
 
     def _plot_info(self, ax, time_step):
         text = r'\begin{align*}'
@@ -252,6 +259,9 @@ class Visualisation:
         # Obstacles
         obstacles = np.any(self._obstacle_maps, axis=(0, 1))
         self._plot_layer(ax, obstacles, 'black')
+
+        for x, y in self._obstacle_pos:
+            self._plot_rect_at_pos(ax, x, y, 'black')
 
         # Agents fields
         for i_agent in range(self._agent_count):

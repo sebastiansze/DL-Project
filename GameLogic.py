@@ -23,6 +23,9 @@ class Point:
     def distance_to(self, to):
         return np.sqrt(np.square(self.x - to.x) + np.square(self.y - to.y))
 
+    def to_numpy(self):
+        return np.array([self.x, self.y])
+
 
 class Player:
     def __init__(self, start: Point, aim: Point):

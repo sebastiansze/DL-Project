@@ -28,6 +28,7 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
     ddqn_scores = []
     eps_history = []
     saved_games = []
+    saved_obstacles = []
     prec = 40
     reached = np.zeros(n_agents, dtype=np.int32)
     reached_last_100 = np.zeros(n_agents, dtype=np.int32)
@@ -58,6 +59,7 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
         avg_scores = np.zeros(n_agents)
         agent_in_final_state = np.full(n_agents, False)
         env = Game(obstacles, None, env_size, MAX_REWARD, viewReduced=VIEW_REDUCED, viewSize=VIEW_RANGE)
+        saved_obstacles.append(np.array([o.to_numpy() for o in env.obstacles]))
         for i in range(n_agents):
             env.add_player()
         observations = env.reset()
@@ -121,10 +123,12 @@ def train(n_games=200, env_size=(15, 15), n_agents=5, timeout=100, resume=False)
     # plt.plot(avg_score_saver)
     # plt.show()
 
-    plot_game_i_list = range(n_games)  # range(0, n_games, 20) # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
+    plot_game_i_list = range(0, n_games, 20) # np.argsort(-1 * np.max(score_saver, axis=1))[:5]
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     for i_game in plot_game_i_list:
-        viz = Visualisation(saved_games[i_game], env_size, n_agents, view_padding=VIEW_RANGE, view_reduced=VIEW_REDUCED)
+        viz = Visualisation(saved_games[i_game], env_size, n_agents,
+                            view_padding=VIEW_RANGE, view_reduced=VIEW_REDUCED,
+                            truth_obstacles=saved_obstacles[i_game])
         # if viz.time_steps > 30:
         path = os.path.join('img', f'{dt}_game_{i_game}.mp4')
         print(f'Generate video {path}...')
