@@ -1,9 +1,11 @@
 import os
 import pickle
+# from pathos import multiprocessing as mp
 import itertools
-import numpy as np
 from tqdm import tqdm
+import numpy as np
 
+import colorsys
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -11,10 +13,8 @@ import matplotlib.patches as patches
 from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 # from IPython.display import HTML
-from multiprocessing.dummy import Pool as ThreadPool
-
 import imageio
-import colorsys
+
 from GameLogic import Game, Point
 
 
@@ -242,15 +242,17 @@ class Visualisation:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-    def _plot_info(self, ax, time_step):
+    def _plot_info(self, ax, time_step, i_game=None):
         text = r'\begin{align*}'
+        if not isinstance(i_game, type(None)):
+            text += r'i_{{game}}&={}\\'.format(i_game)
         text += r't&={}\\'.format(time_step)
         text += r'size_{{map}}&=\left[{}\times{}\right]\\'.format(self._map_size_x, self._map_size_y)
         if self._view_reduced:
             text += r'size_{{view}}&=\left[{}\times{}\right]\\'.format(self._view_size_x, self._view_size_y)
         text += r'\end{align*}'
 
-        ax.text(0.3, 0.75, text, fontsize=18, ha='left', va='center')
+        ax.text(0.3, 0.65, text, fontsize=17, ha='left', va='center')
 
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
@@ -327,20 +329,20 @@ class Visualisation:
         ax.set_yticks([])
         ax.axis('off')
 
-    def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False):
+    def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False, i_game=None):
         # Create outer grid
         outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
         outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
 
         # Plot overview and info on the left side
         left_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer[0],
-                                                     wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 6, 1])
+                                                     wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 4, 1])
         ax = plt.subplot(left_grid[1])
         self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
         ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
         ax = plt.subplot(left_grid[2])
-        self._plot_info(ax, time_step)
+        self._plot_info(ax, time_step, i_game)
         fig.add_subplot(ax)
 
         # Plot Layers
@@ -427,7 +429,7 @@ class Visualisation:
             plt.show(block=block)
 
     def plot_all(self, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False,
-                 block=True, save_as=None):
+                 block=True, save_as=None, i_game=None):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
@@ -436,10 +438,10 @@ class Visualisation:
         mpl.rcParams['toolbar'] = 'None'
         img_width = 1920
         img_height = 1080
-        dpi = 110
+        dpi = 120
         fig = plt.figure(figsize=(img_width/dpi, img_height/dpi), dpi=dpi)
         fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
-                             plot_path=plot_path, plot_input=plot_input)
+                             plot_path=plot_path, plot_input=plot_input, i_game=i_game)
         fig.set_size_inches(img_width/dpi, img_height/dpi)
 
         if save_as:
@@ -451,14 +453,14 @@ class Visualisation:
     def save_all_as_video(self, dt, i_game, plot_agent_status=True, plot_path=True, plot_input=False):
         img_width = 1920
         img_height = 1080
-        dpi = 110
+        dpi = 120
 
         plt.ioff()  # prevent matplotlib from running out of memory
 
         def draw_frame(ts):
             fig, ax = plt.subplots(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
             fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
-                                 plot_path=plot_path, plot_input=plot_input)
+                                 plot_path=plot_path, plot_input=plot_input, i_game=i_game)
             fig.set_size_inches(img_width / dpi, img_height / dpi)
             data = fig_to_data(fig)
             # fig.clf()
@@ -466,10 +468,11 @@ class Visualisation:
             plt.close(fig)
             return data
 
-        # Make the Pool of workers
-        # pool = ThreadPool(4)
+        # Make the pool of workers
+        # pool = mp.ProcessingPool(mp.cpu_count() - 1)
 
-        # frame_array = pool.map(draw_frame_test, list(range(10)))
+        # Start multithreading
+        # frame_array = list(tqdm(pool.imap(draw_frame, np.arange(self.time_steps)), total=self.time_steps))
         frame_array = [draw_frame(ts) for ts in tqdm(range(self.time_steps))]
 
         # Close the pool and wait for the work to finish

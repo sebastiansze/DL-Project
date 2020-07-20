@@ -129,7 +129,7 @@ def train(n_games=1500, env_size=(15, 15), n_agents=2, timeout=100, resume=False
     # plt.show()
 
     plot_game_i_list = np.arange(n_games - 1, 0, - int(n_games * 0.1))
-    plot_game_i_list = np.concatenate([plot_game_i_list, np.argsort(-1 * np.max(score_saver, axis=1))[:5]])
+    plot_game_i_list = np.concatenate([[0], plot_game_i_list, np.argsort(-1 * np.max(score_saver, axis=1))[:5]])
     plot_game_i_list = np.unique(plot_game_i_list)
     print('Visualize this games:{}'.format(plot_game_i_list))
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
