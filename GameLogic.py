@@ -70,30 +70,37 @@ class Game:
 
     def add_player(self, start: Point = None, aim: Point = None):
         """
+        :param min_distance: minimum distance between start and aim
         :param start: a Point with the start coordinates, will be generated randomly if None
         :param aim: a Point with aim coordinates, will be generated randomly if None
         """
+        occupied_starts = [player.start for player in self.players]
+        occupied_aims = [player.aim for player in self.players]
+
         if start is None:
-            unique = False
-            occupied_starts = [player.start for player in self.players]
-            while not unique:
-                # TODO: Why this range of random values - it's actually a really small variance ?
-                start = Point(np.random.randint(2, 4), np.random.randint(2, 5))
-                unique = start not in occupied_starts and start not in self.obstacles
+            valid = False
+            while not valid:
+                start = Point(np.random.randint(0, self.board_size[0]), np.random.randint(0, self.board_size[1]))
+                valid = (start not in occupied_starts and
+                         start not in self.obstacles and
+                         start not in occupied_aims)
 
         if aim is None:
-            unique = False
-            occupied_aims = [player.aim for player in self.players]
-            while not unique:
-                aim = Point(np.random.randint(6, self.board_size[0] - 2),
-                            np.random.randint(int(self.board_size[1] / 2 + 2), self.board_size[1] - 2))
-                unique = aim not in occupied_aims and aim not in self.obstacles
+            valid = False
+            while not valid:
+                aim = Point(np.random.randint(0, self.board_size[0]),
+                            np.random.randint(0, self.board_size[1]))
+                valid = (aim not in occupied_aims and
+                         aim not in self.obstacles and
+                         aim not in occupied_starts and
+                         aim != start)
+                if min_distance is not None:
+                    valid = valid and start.distance_to(aim) >= min_distance
 
         self.players.append(Player(start, aim))
 
     @staticmethod
     def random(board_size=(10, 10), player_count=1, max_reward=100, safe_dist=3):
-        # TODO: Why this range of random values - it's actually a really small variance ?
         num_obstacles = np.random.randint(15, 25)
         obstacles = []
         for i in range(num_obstacles):
