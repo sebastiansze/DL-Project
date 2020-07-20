@@ -20,7 +20,7 @@ def play():
     pass
 
 
-def train(n_games=2500, env_size=(15, 15), n_agents=2, timeout=100, resume=False, view_reduced=True, view_size=(2, 2, 2, 2)):
+def train(n_games=1500, env_size=(15, 15), n_agents=2, timeout=100, resume=False, view_reduced=True, view_size=(2, 2, 2, 2)):
     print(f"------------------------------------------------------------------------------------------------")
     print(f"Starting training for {n_games} with {n_agents} agents...")
     print(f"Settings:")
@@ -128,7 +128,7 @@ def train(n_games=2500, env_size=(15, 15), n_agents=2, timeout=100, resume=False
     # plt.plot(avg_score_saver)
     # plt.show()
 
-    plot_game_i_list = np.arange(n_games - 1, 0, - n_games * 0.1)
+    plot_game_i_list = np.arange(n_games - 1, 0, - int(n_games * 0.1))
     plot_game_i_list = np.concatenate([plot_game_i_list, np.argsort(-1 * np.max(score_saver, axis=1))[:5]])
     plot_game_i_list = np.unique(plot_game_i_list)
     print('Visualize this games:{}'.format(plot_game_i_list))
