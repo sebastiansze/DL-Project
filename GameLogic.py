@@ -145,12 +145,14 @@ class Game:
             if action is not None:
                 self.players[player_id].move(action)
 
-        # Then calculate map and reward for each player
+        # Then calculate reward for each player
         for player_id, action in enumerate(actions):
             reward, final_state = self.get_reward_for_player_id(player_id)
-            observations.append(self.create_map_for_player_id(player_id).flatten())
             rewards.append(reward)
             in_final_state.append(final_state)
+        # As players may have been reset if they collided, generate map after reward function
+        for player_id, action in enumerate(actions):
+            observations.append(self.create_map_for_player_id(player_id).flatten())
 
         return observations, rewards, in_final_state
 
