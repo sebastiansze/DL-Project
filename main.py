@@ -60,7 +60,7 @@ def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
             obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
         saved_obstacles.append(np.array([o.to_numpy() for o in obstacles]))
 
-        env = Game(obstacles, None, env_size, MAX_REWARD, viewReduced=VIEW_REDUCED, viewSize=VIEW_RANGE)
+        env = Game(obstacles, None, env_size, MAX_REWARD, view_reduced=VIEW_REDUCED, view_size=VIEW_RANGE)
         for i in range(n_agents):
             env.add_player()
 

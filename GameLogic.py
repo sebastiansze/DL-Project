@@ -58,17 +58,18 @@ class Player:
 
 
 class Game:
-    def __init__(self, obstacles, players: List[Player] = None, board_size=(10, 10), max_reward=100, safe_dist=3, viewSize = (2,2,2,2), viewReduced = False):
+    def __init__(self, obstacles, players: List[Player] = None, board_size=(10, 10), max_reward=100, safe_dist=3,
+                 view_size=(2, 2, 2, 2), view_reduced=False):
         self.players = [] if players is None else players
         self.board_size = board_size
         self.obstacles = obstacles
         self.MAX_REWARD = max_reward
         self.safe_dist = safe_dist
-        self.viewSize = viewSize
-        self.viewTo1D = (self.viewSize[0] + self.viewSize[1] + 1) * (self.viewSize[2] + self.viewSize[3] + 1)
-        self.viewReduced = viewReduced
+        self.view_size = view_size
+        self.viewTo1D = (self.view_size[0] + self.view_size[1] + 1) * (self.view_size[2] + self.view_size[3] + 1)
+        self.view_reduced = view_reduced
 
-    def add_player(self, start: Point = None, aim: Point = None):
+    def add_player(self, start: Point = None, aim: Point = None, min_distance = None):
         """
         :param min_distance: minimum distance between start and aim
         :param start: a Point with the start coordinates, will be generated randomly if None
@@ -168,10 +169,10 @@ class Game:
                 # Show aims of other agents as an obstacle of this agent
                 m[player.aim.x, player.aim.y] = 0.25
         #print("Viewed  at ", str(playerSav[0]) + " " + str(playerSav[1]))
-        observation = self.getView(m, self.viewSize, (playerSav[0], playerSav[1]))
+        observation = self.getView(m, self.view_size, (playerSav[0], playerSav[1]))
 
         #print(observation)
-        if self.viewReduced:
+        if self.view_reduced:
 
             data = np.array([playerSav[0] / self.board_size[0],
                              playerSav[1] / self.board_size[1],
