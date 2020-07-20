@@ -12,6 +12,7 @@ from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 # from IPython.display import HTML
 from multiprocessing.dummy import Pool as ThreadPool
+
 import imageio
 import colorsys
 from GameLogic import Game, Point
@@ -48,7 +49,6 @@ def fig_to_data(fig):
     buf.shape = (h, w, 3)
 
     buf = np.roll(buf, 3, axis=2)
-    plt.close()
     return buf
 
 
@@ -142,6 +142,7 @@ class Visualisation:
             ],
         }
         plt.rcParams.update(custom_preamble)
+        mpl.use('TkAgg')
 
     def get_map_for_agent(self, time_step=-1, agent=0, plot_input=False):
         """
@@ -255,13 +256,13 @@ class Visualisation:
         ax.set_ylim(0, 1)
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.axis('off')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
 
     def _plot_overview(self, ax, time_step=-1, plot_agent_status=True, plot_path=True):
         # Obstacles
-        obstacles = np.any(self._obstacle_maps, axis=(0, 1))
-        self._plot_layer(ax, obstacles, 'black')
-
         for x, y in self._obstacle_pos:
             self._plot_rect_at_pos(ax, x, y, 'black')
 
@@ -334,11 +335,11 @@ class Visualisation:
         # Plot overview and info on the left side
         left_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer[0],
                                                      wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 6, 1])
-        ax = plt.Subplot(fig, left_grid[1])
+        ax = plt.subplot(left_grid[1])
         self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
         ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
-        ax = plt.Subplot(fig, left_grid[2])
+        ax = plt.subplot(left_grid[2])
         self._plot_info(ax, time_step)
         fig.add_subplot(ax)
 
@@ -360,7 +361,7 @@ class Visualisation:
             layers = self.get_map_for_agent(time_step=time_step, agent=i_agent, plot_input=plot_input)
             for i_layer, layer in enumerate(layers):
                 i_grid = i_agent * nr_layers + i_layer
-                ax = plt.Subplot(fig, agents_grid[i_grid])
+                ax = plt.subplot(agents_grid[i_grid])
                 if plot_input and i_layer + 2 >= nr_layers:
                     self._plot_heatmap(ax, layer)
                 else:
@@ -435,7 +436,7 @@ class Visualisation:
         mpl.rcParams['toolbar'] = 'None'
         img_width = 1920
         img_height = 1080
-        dpi = 100
+        dpi = 110
         fig = plt.figure(figsize=(img_width/dpi, img_height/dpi), dpi=dpi)
         fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
                              plot_path=plot_path, plot_input=plot_input)
@@ -450,14 +451,20 @@ class Visualisation:
     def save_all_as_video(self, dt, i_game, plot_agent_status=True, plot_path=True, plot_input=False):
         img_width = 1920
         img_height = 1080
-        dpi = 100
+        dpi = 110
+
+        plt.ioff()  # prevent matplotlib from running out of memory
 
         def draw_frame(ts):
-            fig = plt.figure(figsize=(img_width/dpi, img_height/dpi), dpi=dpi)
+            fig, ax = plt.subplots(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
             fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
                                  plot_path=plot_path, plot_input=plot_input)
             fig.set_size_inches(img_width / dpi, img_height / dpi)
-            return fig_to_data(fig)
+            data = fig_to_data(fig)
+            # fig.clf()
+            # plt.clf()
+            plt.close(fig)
+            return data
 
         # Make the Pool of workers
         # pool = ThreadPool(4)
@@ -475,7 +482,8 @@ class Visualisation:
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}.mp4'), fps=4, quality=6)
+        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}.mp4'),
+                               fps=4, quality=6, macro_block_size=20)
         for i in range(len(frame_array)):
             w.append_data(frame_array[i])
         w.close()
@@ -538,6 +546,7 @@ class Helpers:
                 else:
                     plt.imshow(np.zeros((self.env.board_size[0], self.env.board_size[1])))
                 frame_array.append(fig_to_data(fig))
+                plt.close()
         #
 
         w = imageio.get_writer('output.mp4', fps=6, quality=6)
