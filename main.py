@@ -14,15 +14,19 @@ from GameLogic import Game, Point
 from visualisation import Visualisation
 
 MAX_REWARD = 200000
-VIEW_RANGE = (2, 2, 2, 2)
-VIEW_REDUCED = True
 
 
 def play():
     pass
 
 
-def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False):
+def train(n_games=500, env_size=(15, 15), n_agents=2, timeout=100, resume=False, view_reduced=True, view_size=(2, 2, 2, 2)):
+    print(f"------------------------------------------------------------------------------------------------")
+    print(f"Starting training for {n_games} with {n_agents} agents...")
+    print(f"Settings:")
+    print(f"World size:\t{env_size}\nTimeout:\t{timeout}\nReduced view:\t{view_reduced}\nView size:\t{view_size}")
+    print(f"------------------------------------------------------------------------------------------------")
+
     score_saver = []
     avg_score_saver = []
     ddqn_scores = []
@@ -33,9 +37,8 @@ def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
     reached = np.zeros(n_agents, dtype=np.int32)
     reached_last_100 = np.zeros(n_agents, dtype=np.int32)
 
-    if VIEW_REDUCED:
-        input_size = (VIEW_RANGE[0] + 1 + VIEW_RANGE[1])*(VIEW_RANGE[2] + 1 + VIEW_RANGE[3]) + 4
-        print("Use Reduced View Mode")
+    if view_reduced:
+        input_size = (view_size[0] + 1 + view_size[1]) * (view_size[2] + 1 + view_size[3]) + 4
     else:
         input_size = env_size[0] * env_size[1]
     agents = []
@@ -60,7 +63,7 @@ def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
             obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
         saved_obstacles.append(np.array([o.to_numpy() for o in obstacles]))
 
-        env = Game(obstacles, None, env_size, MAX_REWARD, view_reduced=VIEW_REDUCED, view_size=VIEW_RANGE)
+        env = Game(obstacles, None, env_size, MAX_REWARD, view_reduced=view_reduced, view_size=view_size)
         for i in range(n_agents):
             env.add_player()
 
@@ -132,7 +135,7 @@ def train(n_games=200, env_size=(15, 15), n_agents=2, timeout=100, resume=False)
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     for i_game in plot_game_i_list:
         viz = Visualisation(saved_games[i_game], env_size, n_agents,
-                            view_padding=VIEW_RANGE, view_reduced=VIEW_REDUCED,
+                            view_padding=view_size, view_reduced=view_reduced,
                             truth_obstacles=saved_obstacles[i_game])
         # if viz.time_steps > 30:
         print(f'Generate visual output for game {i_game} of session {dt}...')

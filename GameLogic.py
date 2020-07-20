@@ -3,6 +3,10 @@ import copy
 from typing import List, Tuple
 
 
+def clip(val, min_, max_):
+    return min_ if val < min_ else max_ if val > max_ else val
+
+
 class Point:
     def __init__(self, x, y):
         self.x = x
@@ -33,6 +37,7 @@ class Player:
         self.position = copy.deepcopy(start)
         self.previous_position = copy.deepcopy(start)
         self.aim = aim
+        self.collided = False
 
     def reset(self):
         self.position = copy.deepcopy(self.start)
@@ -52,6 +57,10 @@ class Player:
         elif action == 3:
             self.position.y -= 1
 
+    def register_collision(self):
+        self.position = copy.deepcopy(self.previous_position)
+        self.collided = True
+
     def did_collide_with(self, other: 'Player'):
         # True if players switched places and therefore ran front to front into each other
         return other.position == self.previous_position and self.position == other.previous_position
@@ -69,7 +78,7 @@ class Game:
         self.viewTo1D = (self.view_size[0] + self.view_size[1] + 1) * (self.view_size[2] + self.view_size[3] + 1)
         self.view_reduced = view_reduced
 
-    def add_player(self, start: Point = None, aim: Point = None, min_distance = None):
+    def add_player(self, start: Point = None, aim: Point = None, min_distance=None):
         """
         :param min_distance: minimum distance between start and aim
         :param start: a Point with the start coordinates, will be generated randomly if None
@@ -147,82 +156,64 @@ class Game:
 
     def create_map_for_player_id(self, player_id: int):
         m = np.zeros(self.board_size)
-
-        playerSav = (0, 0)
-        aimSav = (0,0)
+        player = self.players[player_id]
         for ob in self.obstacles:
             m[ob.x, ob.y] = 0.25
-        for id_, player in enumerate(self.players):
-
+        for id_, p in enumerate(self.players):
             if id_ == player_id:
-                m[player.aim.x, player.aim.y] = 0.75
-                if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]:
-                    m[player.position.x, player.position.y] = 1
-                    playerSav = (np.copy(player.position.x), np.copy(player.position.y))
-                    aimSav = (player.aim.x, player.aim.y)
-                    #print("Saved at ", str(playerSav[0]) + " " + str(playerSav[1]))
+                m[p.aim.x, p.aim.y] = 0.75
+                m[p.position.x, p.position.y] = 1
             else:
                 # Only set position if it is not own position
-                if 0 <= player.position.x < self.board_size[0] and 0 <= player.position.y < self.board_size[1]\
-                        and m[player.position.x, player.position.y] != 0.75:
-                    m[player.position.x, player.position.y] = 0.5
+                if m[p.position.x, p.position.y] != 0.75:
+                    m[p.position.x, p.position.y] = 0.5
                 # Show aims of other agents as an obstacle of this agent
-                m[player.aim.x, player.aim.y] = 0.25
-        #print("Viewed  at ", str(playerSav[0]) + " " + str(playerSav[1]))
-        observation = self.getView(m, self.view_size, (playerSav[0], playerSav[1]))
+                m[p.aim.x, p.aim.y] = 0.25
 
-        #print(observation)
         if self.view_reduced:
-
-            data = np.array([playerSav[0] / self.board_size[0],
-                             playerSav[1] / self.board_size[1],
-                             aimSav[0] / self.board_size[0],
-                             aimSav[1] / self.board_size[1]])
+            observation = self.get_view_for_player(m, player)
+            data = np.array([player.position.x / self.board_size[0],
+                             player.position.y / self.board_size[1],
+                             player.aim.x / self.board_size[0],
+                             player.aim.y / self.board_size[1]])
             m = np.concatenate((observation, data), axis=None)
 
         return m
 
-    def getView(self, board, view, pp):
+    def get_view_for_player(self, board, player: Player):
         # board[pp[0], pp[1]] = 1
-        out = np.zeros((1 + view[0] + view[1], 1 + view[2] + view[3]))
-        xMin = pp[0] - view[0]
-        xMax = pp[0] + view[1]
-        yMin = pp[1] - view[2]
-        yMax = pp[1] + view[3]
+        out = np.zeros((1 + self.view_size[0] + self.view_size[1], 1 + self.view_size[2] + self.view_size[3]))
+        x_min = player.position.x - self.view_size[0]
+        x_max = player.position.x + self.view_size[1]
+        y_min = player.position.y - self.view_size[2]
+        y_max = player.position.y + self.view_size[3]
 
-        if xMin < 0:
-            xMinOut = 0
-        else:
-            xMinOut = xMin
-
-        if yMin < 0:
-            yMinOut = 0
-        else:
-            yMinOut = yMin
+        x_min_out = max(0, x_min)
+        y_min_out = max(0, y_min)
 
         # --- Offsets ---
 
-        if xMin < 0:
-            xMinOffset = -xMin
+        if x_min < 0:
+            x_min_offset = -x_min
         else:
-            xMinOffset = 0
+            x_min_offset = 0
 
-        if xMax >= board.shape[0]:
-            xMaxOffset = out.shape[0] + board.shape[0] - xMax - 1
+        if x_max >= board.shape[0]:
+            x_max_offset = out.shape[0] + board.shape[0] - x_max - 1
         else:
-            xMaxOffset = out.shape[0]
+            x_max_offset = out.shape[0]
 
-        if yMin < 0:
-            yMinOffset = -yMin
+        if y_min < 0:
+            y_min_offset = -y_min
         else:
-            yMinOffset = 0
+            y_min_offset = 0
 
-        if yMax >= board.shape[1]:
-            yMaxOffset = out.shape[1] + board.shape[1] - yMax - 1
+        if y_max >= board.shape[1]:
+            y_max_offset = out.shape[1] + board.shape[1] - y_max - 1
         else:
-            yMaxOffset = out.shape[1]
+            y_max_offset = out.shape[1]
         # print("PlayerPos = " + str(self.playerPos[0]) + "," + str(self.playerPos[1]))
-        out[xMinOffset:xMaxOffset, yMinOffset:yMaxOffset] = board[xMinOut:xMax + 1, yMinOut:yMax + 1]
+        out[x_min_offset:x_max_offset, y_min_offset:y_max_offset] = board[x_min_out:x_max + 1, y_min_out:y_max + 1]
         # print(out)
         return out
 
@@ -240,6 +231,8 @@ class Game:
 
     def get_reward_for_player_id(self, player_id: any):
         player = self.players[player_id]
+        if player.collided:
+            return 0, True
         reward, done = self.check_bounds(player.position)
         reward -= 300 * player.position.distance_to(player.aim) / (self.board_size[1] + self.board_size[0])
 
@@ -263,6 +256,12 @@ class Game:
             reward -= edge_control
         if player.position.y == 0 or player.position.y == self.board_size[1] - 1:
             reward -= edge_control
+
+        # If done == True at this point, player collided (either with obstacle, player or boundary)
+        # Register collision in player and reset to previous position
+        if done:
+            player.register_collision()
+
         if player.position == player.aim:
             reward = self.MAX_REWARD
             done = True
