@@ -110,7 +110,7 @@ class Visualisation:
         if isinstance(truth_obstacles, type(None)):
             self._obstacle_pos = np.argwhere(np.any(self._obstacle_maps, axis=(0, 1)))
         else:
-            self._obstacle_pos = truth_obstacles
+            self._obstacle_pos = np.unique(truth_obstacles, axis=0)
 
         # Others Position
         self._others_maps = (self._full_maps == 0.5)

@@ -20,12 +20,12 @@ def play():
     pass
 
 
-def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=100, resume=True,
+def train(n_games=20, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=2, resume=True,
           view_reduced=True, view_size=(2, 2, 2, 2)):
     print(f"------------------------------------------------------------------------------------------------")
     print(f"Starting training for {n_games} with {n_agents} agents...")
     print(f"Settings:")
-    print(f"World size:\t{env_size}\nTimeout:\t{timeout}\nReduced view:\t{view_reduced}\nView size:\t{view_size}")
+    print(f"Reduced view:\t{view_reduced}\nView size:\t{view_size}")
     print(f"------------------------------------------------------------------------------------------------")
 
     score_saver = []
@@ -33,6 +33,7 @@ def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=100, resume=True,
     ddqn_scores = []
     eps_history = []
     saved_games = []
+    saved_env_size = []
     saved_obstacles = []
     prec = 40
     reached = np.zeros(n_agents, dtype=np.int32)
@@ -41,7 +42,7 @@ def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=100, resume=True,
     if view_reduced:
         input_size = (view_size[0] + 1 + view_size[1]) * (view_size[2] + 1 + view_size[3]) + 4
     else:
-        input_size = env_size[0] * env_size[1]
+        input_size = env_size_max[0] * env_size_max[1]
     agents = []
 
     for agent_id in range(n_agents):
@@ -58,9 +59,17 @@ def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=100, resume=True,
         avg_scores = np.zeros(n_agents)
         agent_in_final_state = np.full(n_agents, False)
 
-        num_obstacles = np.random.randint(15, 25) - 2 * n_agents
+        # Define size of map randomly in given range
+        env_size = [mi if mi == ma else np.random.randint(mi, ma) for mi, ma in zip(env_size_min, env_size_max)]
+        saved_env_size.append(env_size)
+
+        # Define a time limit based on the perimeter of the environment
+        timeout = np.sum(env_size * 2)
+
+        # Create obstacles randomly
+        num_obs = int(np.max([np.round(np.random.uniform(0.06, 0.15) * np.multiply(*env_size)) - 2 * n_agents, 0]))
         obstacles = []
-        for i in range(num_obstacles):
+        for i in range(num_obs):
             obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
         saved_obstacles.append(np.array([o.to_numpy() for o in obstacles]))
 
@@ -136,7 +145,7 @@ def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=100, resume=True,
     print('Visualize this games:{}'.format(plot_game_i_list))
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     for i_game in plot_game_i_list:
-        viz = Visualisation(saved_games[i_game], env_size, n_agents,
+        viz = Visualisation(saved_games[i_game], saved_env_size[i_game], n_agents,
                             view_padding=view_size, view_reduced=view_reduced,
                             truth_obstacles=saved_obstacles[i_game])
         # if viz.time_steps > 30:
