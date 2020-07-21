@@ -548,11 +548,15 @@ class Visualisation:
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}_{kind}.mp4'),
+        file_name = f'{dt}_game_{i_game}_{kind}.mp4'
+
+        w = imageio.get_writer(os.path.join(directory, file_name),
                                fps=4, quality=6, macro_block_size=20)
         for i in range(len(frame_array)):
             w.append_data(frame_array[i])
         w.close()
+
+        open(os.path.join(directory, 'files.txt'), "a").write(f"file '{file_name}'\n")
 
     def save(self, dt, i_game):
         directory = os.path.join('viz', dt)

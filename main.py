@@ -141,7 +141,7 @@ def train(n_games=20, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=2, 
     plot_game_i_list = np.arange(n_games - 1, 0, - int(n_games * 0.1))
     plot_game_i_list = np.concatenate([[0], plot_game_i_list, np.argsort(-1 * np.max(score_saver, axis=1))[:5]])
     plot_game_i_list = np.unique(plot_game_i_list)
-    plot_game_i_list = np.flip(plot_game_i_list)
+    # plot_game_i_list = np.flip(plot_game_i_list)
     print('Visualize this games:{}'.format(plot_game_i_list))
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     for i_game in plot_game_i_list:
