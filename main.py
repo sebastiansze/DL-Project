@@ -141,7 +141,7 @@ def train(n_games=1500, env_size=(15, 15), n_agents=2, timeout=100, resume=False
         # if viz.time_steps > 30:
         print(f'Generate visual output for game {i_game} of session {dt}...')
         # viz.plot_all(plot_input=True, save_as=os.path.join('img', f'{dt}_game_{i_game}.png'))
-        viz.save_all_as_video(dt, i_game, plot_input=True)
+        viz.generate_mp4('all', dt, i_game, plot_input=True)
         # viz.save(dt, i_game)
 
     # What was this supposed to do? Definitely does not work like this!

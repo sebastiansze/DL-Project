@@ -136,7 +136,7 @@ class Visualisation:
 
         # Latex Settings
         custom_preamble = {
-             "text.usetex": True,
+            "text.usetex": True,
             "text.latex.preamble": [
                 r"\usepackage{amsmath}",  # for the align enivironment
             ],
@@ -303,7 +303,13 @@ class Visualisation:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-    def _plot_overview(self, ax, time_step=-1, plot_agent_status=True, plot_path=True):
+    def _plot_overview(self, fig, outer_grid=None, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False,
+                       plot_info=False, i_game=None, title=''):
+        outer_grid = gridspec.GridSpec(1, 1, wspace=0, hspace=0)[0] if outer_grid is None else outer_grid
+        grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid,
+                                                wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 4, 1])
+        ax = plt.Subplot(fig, grid[1])
+
         # Obstacles
         for x, y in self._obstacle_pos:
             self._plot_rect_at_pos(ax, x, y, 'black')
@@ -344,20 +350,20 @@ class Visualisation:
             # Plot start position
             # if start_pos is not None and start_pos[0].shape[0] != 0:
             for x, y in start_pos:
-                self._plot_label(ax, x-0.15, y+0.2, "S", color)
+                self._plot_label(ax, x - 0.15, y + 0.2, "S", color)
             # else:
             #     print('Warning: No start position')
 
             # Plot aim position
             for x, y in aim_pos:
-                self._plot_label(ax, x-0.15, y+0.2, "E", color)
+                self._plot_label(ax, x - 0.15, y + 0.2, "E", color)
 
             # Plot agent status
             if plot_agent_status:
                 for status, symbol in zip(['a', 's', '3', 't'], ['\u2713', '\u2717', '\u2717', '\u2717']):  # \u2620
                     if self._agents_conditions[i_agent] == status:
                         for x, y in self._current_maps[time_step, i_agent]:
-                            self._plot_label(ax, x-0.15, y+0.2, symbol, 'black')
+                            self._plot_label(ax, x - 0.15, y + 0.2, symbol, 'black')
 
         # Plot Border
         self._plot_map_border(ax)
@@ -368,22 +374,25 @@ class Visualisation:
         ax.set_xticks([])
         ax.set_yticks([])
         ax.axis('off')
+        ax.set_title(title, fontsize=15)
+        fig.add_subplot(ax)
 
-    def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False, i_game=None):
+        if plot_info:
+            ax = plt.Subplot(fig, grid[2])
+            self._plot_info(ax, time_step, i_game)
+            fig.add_subplot(ax)
+
+        return fig
+
+    def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False,
+                  plot_info=False, i_game=None, overview_title='Overview'):
         # Create outer grid
         outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
         outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
 
-        # Plot overview and info on the left side
-        left_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer[0],
-                                                     wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 4, 1])
-        ax = plt.Subplot(fig, left_grid[1])
-        self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
-        ax.set_title('Overview', fontsize=15)
-        fig.add_subplot(ax)
-        ax = plt.Subplot(fig, left_grid[2])
-        self._plot_info(ax, time_step, i_game)
-        fig.add_subplot(ax)
+        # Plot overview on the left side
+        self._plot_overview(fig, outer[0], time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path,
+                            plot_info=plot_info, i_game=i_game, title=overview_title)
 
         # Plot Layers
         if self._next_step:
@@ -450,17 +459,19 @@ class Visualisation:
         else:
             plt.show(block=block)
 
-    def plot_overview(self, time_step=-1, plot_agent_status=True, plot_path=True, block=True, save_as=None):
+    def plot_overview(self, time_step=-1, plot_agent_status=True, plot_path=True, block=True, save_as=None,
+                      plot_info=False, i_game=None):
         """
         Shows an overview for humans
         :return:
         """
         # Disable tools and create figure and axes
         mpl.rcParams['toolbar'] = 'None'
-        fig, ax = plt.subplots(1, figsize=(5, 5))
+        fig = plt.figure(figsize=(5, 5))
 
         # Plot overview
-        self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
+        self._plot_overview(fig, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path,
+                            plot_info=plot_info, i_game=i_game)
 
         if save_as:
             fig.savefig(save_as)
@@ -479,10 +490,10 @@ class Visualisation:
         img_width = 1920
         img_height = 1080
         dpi = 120
-        fig = plt.figure(figsize=(img_width/dpi, img_height/dpi), dpi=dpi)
+        fig = plt.figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
         fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
                              plot_path=plot_path, plot_input=plot_input, i_game=i_game)
-        fig.set_size_inches(img_width/dpi, img_height/dpi)
+        fig.set_size_inches(img_width / dpi, img_height / dpi)
 
         if save_as:
             fig.savefig(save_as, dpi=dpi)
@@ -490,17 +501,24 @@ class Visualisation:
         else:
             plt.show(block=block)
 
-    def save_all_as_video(self, dt, i_game, plot_agent_status=True, plot_path=True, plot_input=False):
+    def generate_mp4(self, kind, dt, i_game, plot_agent_status=True, plot_path=True, plot_input=False):
+        plot_func = None
         img_width = 1920
         img_height = 1080
         dpi = 120
+        if kind == 'all':
+            plot_func = self._plot_all
+        elif kind == 'overview':
+            plot_func = self._plot_overview
+            img_height = 1080
+            img_width = 600
 
         plt.ioff()  # prevent matplotlib from running out of memory
 
         def draw_frame(ts):
             fig = plt.figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
-            fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
-                                 plot_path=plot_path, plot_input=plot_input, i_game=i_game)
+            fig = plot_func(fig, time_step=ts, plot_agent_status=plot_agent_status, plot_path=plot_path,
+                            plot_input=plot_input, plot_info=True, i_game=i_game)
             fig.set_size_inches(img_width / dpi, img_height / dpi)
             data = fig_to_data(fig)
             # fig.clf()
@@ -525,7 +543,7 @@ class Visualisation:
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}.mp4'),
+        w = imageio.get_writer(os.path.join(directory, f'{dt}_game_{i_game}_{kind}.mp4'),
                                fps=4, quality=6, macro_block_size=20)
         for i in range(len(frame_array)):
             w.append_data(frame_array[i])
@@ -603,9 +621,9 @@ class Helpers:
     #     return HTML(before + path + end)
 
 
-if __name__ == "__main__":
-    viz_file_name = "2020-07-19-21-46-31"
-    viz = Visualisation.load(f'{viz_file_name}.viz')
-    path = os.path.join('img', f'{viz_file_name}.mp4')
-    print(f'Generate video {path}...')
-    viz.save_all_as_video(plot_input=True, save_as=path)
+# if __name__ == "__main__":
+#     dt = "2020-07-19-21-46-31"
+#     viz = Visualisation.load(f'{dt}.viz')
+#     path = os.path.join('img', f'{dt}.mp4')
+#     print(f'Generate video {path}...')
+#     viz.generate_mp4('all', dt, i_game, plot_input=True)
