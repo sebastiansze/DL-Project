@@ -292,7 +292,7 @@ class Visualisation:
             text += r'size_{{view}}&=\left[{}\times{}\right]\\'.format(self._view_size_x, self._view_size_y)
         text += r'\end{align*}'
 
-        ax.text(0.3, 0.65, text, fontsize=17, ha='left', va='center')
+        ax.text(0.3, 1.0, text, fontsize=17, ha='left', va='top')
 
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
@@ -303,11 +303,15 @@ class Visualisation:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-    def _plot_overview(self, fig, outer_grid=None, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False,
-                       plot_info=False, i_game=None, title=''):
-        outer_grid = gridspec.GridSpec(1, 1, wspace=0, hspace=0)[0] if outer_grid is None else outer_grid
-        grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid,
-                                                wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 4, 1])
+    def _plot_overview(self, fig, outer_grid=None, time_step=-1, plot_agent_status=True, plot_path=True,
+                       plot_input=False, plot_info=False, i_game=None, title=''):
+        if outer_grid is None:
+            outer_grid = gridspec.GridSpec(1, 1, wspace=0, hspace=0)[0]
+            grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid,
+                                                    wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[0, 5, 1])
+        else:
+            grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid,
+                                                    wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 3, 1])
         ax = plt.Subplot(fig, grid[1])
 
         # Obstacles
@@ -391,7 +395,8 @@ class Visualisation:
         outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
 
         # Plot overview on the left side
-        self._plot_overview(fig, outer[0], time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path,
+        self._plot_overview(fig, outer[0], time_step=time_step, plot_agent_status=plot_agent_status,
+                            plot_path=plot_path,
                             plot_info=plot_info, i_game=i_game, title=overview_title)
 
         # Plot Layers
@@ -511,7 +516,7 @@ class Visualisation:
         elif kind == 'overview':
             plot_func = self._plot_overview
             img_height = 1080
-            img_width = 600
+            img_width = 900
 
         plt.ioff()  # prevent matplotlib from running out of memory
 
@@ -619,7 +624,6 @@ class Helpers:
     #     before = """<video width="864" height="576" controls><source src="""
     #     end = """ type="video/mp4"></video>"""
     #     return HTML(before + path + end)
-
 
 # if __name__ == "__main__":
 #     dt = "2020-07-19-21-46-31"

@@ -20,7 +20,8 @@ def play():
     pass
 
 
-def train(n_games=1500, env_size=(15, 15), n_agents=2, timeout=100, resume=False, view_reduced=True, view_size=(2, 2, 2, 2)):
+def train(n_games=2000, env_size=(15, 15), n_agents=2, timeout=100, resume=True,
+          view_reduced=True, view_size=(2, 2, 2, 2)):
     print(f"------------------------------------------------------------------------------------------------")
     print(f"Starting training for {n_games} with {n_agents} agents...")
     print(f"Settings:")
