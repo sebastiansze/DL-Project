@@ -160,6 +160,46 @@ class Visualisation:
         full_map = self._full_maps[time_step, agent]
         input_map = self._input_maps[time_step, agent]
 
+        # Add global positions to reduced input map
+        if self._view_reduced:
+            # get global positions, concatenate it to a vector and add a white border above
+            # -> size = [2, 4]
+            c_pos = self._current_pos[time_step, agent] / [self._map_size_x, self._map_size_y]
+            a_pos = self._aim_pos[time_step, agent] / [self._map_size_x, self._map_size_y]
+            positions = np.concatenate([c_pos, a_pos]).reshape(1, -1)
+            positions = np.concatenate([np.ones((1, positions.shape[1])), positions], axis=0)
+
+            # duplicate each pixel in input_map and positions to force divisibility by two
+            input_map = input_map.repeat(2, axis=0).repeat(2, axis=1)
+            positions = positions.repeat(2, axis=0).repeat(2, axis=1)
+
+            # align centered both
+            size_diff = input_map.shape[1] - positions.shape[1]
+            if size_diff < 0:  # position vector is longer than input_map width
+                # add placeholder left and right to input_map
+                input_map = np.concatenate([np.ones((input_map.shape[0], int(-0.5 * size_diff))),
+                                            input_map,
+                                            np.ones((input_map.shape[0], int(-0.5 * size_diff)))], axis=1)
+            elif size_diff > 0:  # position vector is shorter than input_map width
+                # add placeholder left and right to positions
+                positions = np.concatenate([np.ones((4, int(0.5 * size_diff))),
+                                            positions,
+                                            np.ones((4, int(0.5 * size_diff)))], axis=1)
+
+            # now concatenate both
+            input_map = np.concatenate([input_map, positions], axis=0)
+
+            # make shape of input_map quadratic
+            size_diff = input_map.shape[0] - positions.shape[1]
+            if size_diff < 0:  # concatenated input_map is wider than high
+                input_map = np.concatenate([np.ones((int(-0.5 * size_diff), input_map.shape[1])),
+                                            input_map,
+                                            np.ones((int(-0.5 * size_diff), input_map.shape[1]))], axis=0)
+            elif size_diff > 0:  # concatenated input_map is higher than wide
+                input_map = np.concatenate([np.ones((input_map.shape[0], int(0.5 * size_diff))),
+                                            input_map,
+                                            np.ones((input_map.shape[0], int(0.5 * size_diff)))], axis=1)
+
         if plot_input:
             agent_map = [obstacles, aim_map, cur_map, others_cp, full_map, input_map]  # TODO: Next step
         else:
@@ -337,11 +377,11 @@ class Visualisation:
         # Plot overview and info on the left side
         left_grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer[0],
                                                      wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 4, 1])
-        ax = plt.subplot(left_grid[1])
+        ax = plt.Subplot(fig, left_grid[1])
         self._plot_overview(ax, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path)
         ax.set_title('Overview', fontsize=15)
         fig.add_subplot(ax)
-        ax = plt.subplot(left_grid[2])
+        ax = plt.Subplot(fig, left_grid[2])
         self._plot_info(ax, time_step, i_game)
         fig.add_subplot(ax)
 
@@ -363,7 +403,7 @@ class Visualisation:
             layers = self.get_map_for_agent(time_step=time_step, agent=i_agent, plot_input=plot_input)
             for i_layer, layer in enumerate(layers):
                 i_grid = i_agent * nr_layers + i_layer
-                ax = plt.subplot(agents_grid[i_grid])
+                ax = plt.Subplot(fig, agents_grid[i_grid])
                 if plot_input and i_layer + 2 >= nr_layers:
                     self._plot_heatmap(ax, layer)
                 else:
@@ -458,7 +498,7 @@ class Visualisation:
         plt.ioff()  # prevent matplotlib from running out of memory
 
         def draw_frame(ts):
-            fig, ax = plt.subplots(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
+            fig = plt.figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
             fig = self._plot_all(fig, time_step=ts, plot_agent_status=plot_agent_status,
                                  plot_path=plot_path, plot_input=plot_input, i_game=i_game)
             fig.set_size_inches(img_width / dpi, img_height / dpi)
