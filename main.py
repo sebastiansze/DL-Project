@@ -18,7 +18,7 @@ def play():
     pass
 
 
-def train(n_games=20, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=10, resume=False,
+def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=10, resume=True,
           view_reduced=True, view_size=(2, 2, 2, 2)):
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     print(f"------------------------------------------------------------------------------------------------")
