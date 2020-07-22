@@ -238,8 +238,10 @@ class Game:
         reward, done = self.check_bounds(player.position)
         reward -= 300 * player.position.distance_to(player.aim) / (self.board_size[1] + self.board_size[0])
 
-        # reduce reward if we get close to / collide with an obstacle
-        for ob in self.obstacles:
+        # reduce reward if we get close to / collide with an obstacle and aims of other agents
+        obs = copy.deepcopy(self.obstacles)
+        obs += [self.players[i].aim for i in np.delete(np.arange(len(self.players)), player_id)]
+        for ob in obs:
             reward -= 1000 * np.exp(-(player.position.distance_to(ob) * self.safe_dist))
             if ob == player.position:
                 done = True
