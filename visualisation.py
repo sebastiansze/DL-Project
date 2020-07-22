@@ -1,8 +1,10 @@
 import os
 import pickle
 # from pathos import multiprocessing as mp
+import argparse
 import itertools
 from tqdm import tqdm
+from datetime import datetime
 import numpy as np
 
 import colorsys
@@ -16,6 +18,15 @@ from matplotlib.font_manager import FontProperties
 import imageio
 
 from GameLogic import Game, Point
+
+custom_preamble = {
+    "text.usetex": True,
+    "text.latex.preamble": [
+        r"\usepackage{amsmath}",  # for the align enivironment
+    ],
+}
+plt.rcParams.update(custom_preamble)
+mpl.use('TkAgg')
 
 
 def print_layers(layers, fill='\u2590\u2588\u258C'):
@@ -53,7 +64,8 @@ def fig_to_data(fig):
 
 
 class Visualisation:
-    def __init__(self, input_maps, map_size, agent_count, view_padding, view_reduced=False, truth_obstacles=None):
+    def __init__(self, input_maps, map_size, agent_count, view_padding, view_reduced=False,
+                 truth_obstacles=None, dt='', i_game=None):
         self._map_size_x = map_size[0]
         self._map_size_y = map_size[1]
         self._view_padding = view_padding
@@ -63,6 +75,8 @@ class Visualisation:
         self._agent_count = agent_count
         self.time_steps = len(input_maps)
         self._next_step = False
+        self._dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S') if dt == '' else dt
+        self._i_game = i_game
 
         input_maps = np.array(input_maps)
         if not view_reduced:
@@ -133,16 +147,6 @@ class Visualisation:
 
         # Color
         self._color_hue_offset = np.random.uniform()
-
-        # Latex Settings
-        custom_preamble = {
-            "text.usetex": True,
-            "text.latex.preamble": [
-                r"\usepackage{amsmath}",  # for the align enivironment
-            ],
-        }
-        plt.rcParams.update(custom_preamble)
-        mpl.use('TkAgg')
 
     def get_map_for_agent(self, time_step=-1, agent=0, plot_input=False):
         """
@@ -282,10 +286,10 @@ class Visualisation:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-    def _plot_info(self, ax, time_step, i_game=None):
+    def _plot_info(self, ax, time_step):
         text = r'\begin{align*}'
-        if not isinstance(i_game, type(None)):
-            text += r'i_{{game}}&={}\\'.format(i_game)
+        if not isinstance(self._i_game, type(None)):
+            text += r'i_{{game}}&={}\\'.format(self._i_game)
         text += r't&={}\\'.format(time_step)
         text += r'size_{{map}}&=\left[{}\times{}\right]\\'.format(self._map_size_x, self._map_size_y)
         if self._view_reduced:
@@ -304,14 +308,16 @@ class Visualisation:
         ax.spines['left'].set_visible(False)
 
     def _plot_overview(self, fig, outer_grid=None, time_step=-1, plot_agent_status=True, plot_path=True,
-                       plot_input=False, plot_info=False, i_game=None, title=''):
+                       plot_input=False, plot_info=False, title=''):
         if outer_grid is None:
             outer_grid = gridspec.GridSpec(1, 1, wspace=0, hspace=0)[0]
             grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid,
-                                                    wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[0, 5, 1])
+                                                    wspace=0.1, hspace=0.1, width_ratios=[1],
+                                                    height_ratios=[0, 5, 1 if plot_info else 0])
         else:
             grid = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_grid,
-                                                    wspace=0.1, hspace=0.1, width_ratios=[1], height_ratios=[1, 3, 1])
+                                                    wspace=0.1, hspace=0.1, width_ratios=[1],
+                                                    height_ratios=[1 if plot_info else 0, 3, 1 if plot_info else 0])
         ax = plt.Subplot(fig, grid[1])
 
         # Obstacles
@@ -383,21 +389,20 @@ class Visualisation:
 
         if plot_info:
             ax = plt.Subplot(fig, grid[2])
-            self._plot_info(ax, time_step, i_game)
+            self._plot_info(ax, time_step)
             fig.add_subplot(ax)
 
         return fig
 
     def _plot_all(self, fig, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False,
-                  plot_info=False, i_game=None, overview_title='Overview'):
+                  plot_info=False, overview_title='Overview'):
         # Create outer grid
         outer = gridspec.GridSpec(1, 2, wspace=0.1, hspace=0.1, width_ratios=[0.382, 0.618])
         outer.update(left=0.01, right=0.99, top=0.95, bottom=0.01)
 
         # Plot overview on the left side
         self._plot_overview(fig, outer[0], time_step=time_step, plot_agent_status=plot_agent_status,
-                            plot_path=plot_path,
-                            plot_info=plot_info, i_game=i_game, title=overview_title)
+                            plot_path=plot_path, plot_info=plot_info, title=overview_title)
 
         # Plot Layers
         if self._next_step:
@@ -464,49 +469,77 @@ class Visualisation:
         else:
             plt.show(block=block)
 
-    def plot_overview(self, time_step=-1, plot_agent_status=True, plot_path=True, block=True, save_as=None,
-                      plot_info=False, i_game=None):
+    def plot_overview(self, time_step=-1, plot_agent_status=True, plot_path=True, plot_info=False,
+                      block=True, save=False):
         """
         Shows an overview for humans
         :return:
         """
+        
+        if time_step == -1:
+            time_step = self.time_steps - 1
+        
         # Disable tools and create figure and axes
         mpl.rcParams['toolbar'] = 'None'
-        fig = plt.figure(figsize=(5, 5))
+        img_width = 1080
+        img_height = 1080
+        dpi = 120
+        fig = plt.figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
 
         # Plot overview
         self._plot_overview(fig, time_step=time_step, plot_agent_status=plot_agent_status, plot_path=plot_path,
-                            plot_info=plot_info, i_game=i_game)
+                            plot_info=plot_info)
+        fig.set_size_inches(img_width / dpi, img_height / dpi)
 
-        if save_as:
-            fig.savefig(save_as)
+        if save:
+            directory = os.path.join('viz', self._dt, 'overview')
+            
+            # Check if directory for images exists
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+
+            file_name = f'{self._dt}_game_{self._i_game}_time_{time_step}_overview.png'
+            fig.savefig(os.path.join(directory, file_name), dpi=dpi)
             plt.close(fig)
         else:
             plt.show(block=block)
 
-    def plot_all(self, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False,
-                 block=True, save_as=None, i_game=None):
+    def plot_all(self, time_step=-1, plot_agent_status=True, plot_path=True, plot_input=False, plot_info=False,
+                 block=True, save=False):
         """
         Shows an overview and all layers for each single agent in one plot
         :return:
         """
+
+        if time_step == -1:
+            time_step = self.time_steps - 1
+
         # Disable tools and create figure, axes and outer grid
         mpl.rcParams['toolbar'] = 'None'
         img_width = 1920
         img_height = 1080
         dpi = 120
         fig = plt.figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
+
+        # Plot all
         fig = self._plot_all(fig, time_step=time_step, plot_agent_status=plot_agent_status,
-                             plot_path=plot_path, plot_input=plot_input, i_game=i_game)
+                             plot_path=plot_path, plot_input=plot_input, plot_info=plot_info)
         fig.set_size_inches(img_width / dpi, img_height / dpi)
 
-        if save_as:
-            fig.savefig(save_as, dpi=dpi)
+        if save:
+            directory = os.path.join('viz', self._dt, 'all')
+
+            # Check if directory for images exists
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+
+            file_name = f'{self._dt}_game_{self._i_game}_time_{time_step}_all.png'
+            fig.savefig(os.path.join(directory, file_name), dpi=dpi)
             plt.close(fig)
         else:
             plt.show(block=block)
 
-    def generate_mp4(self, kind, dt, i_game, plot_agent_status=True, plot_path=True, plot_input=False):
+    def generate_mp4(self, kind, plot_agent_status=True, plot_path=True, plot_input=False, plot_info=True):
         plot_func = None
         img_width = 1920
         img_height = 1080
@@ -516,14 +549,14 @@ class Visualisation:
         elif kind == 'overview':
             plot_func = self._plot_overview
             img_height = 1080
-            img_width = 900
+            img_width = 1080  # 900
 
         plt.ioff()  # prevent matplotlib from running out of memory
 
         def draw_frame(ts):
             fig = plt.figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
             fig = plot_func(fig, time_step=ts, plot_agent_status=plot_agent_status, plot_path=plot_path,
-                            plot_input=plot_input, plot_info=True, i_game=i_game)
+                            plot_input=plot_input, plot_info=plot_info)
             fig.set_size_inches(img_width / dpi, img_height / dpi)
             data = fig_to_data(fig)
             # fig.clf()
@@ -542,13 +575,13 @@ class Visualisation:
         # pool.close()
         # pool.join()
 
-        directory = os.path.join('img', dt)
+        directory = os.path.join('viz', self._dt, kind)
 
         # Check if directory for images exists
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        file_name = f'{dt}_game_{i_game}_{kind}.mp4'
+        file_name = f'{self._dt}_game_{self._i_game}_{kind}.mp4'
 
         w = imageio.get_writer(os.path.join(directory, file_name),
                                fps=4, quality=6, macro_block_size=20)
@@ -556,15 +589,15 @@ class Visualisation:
             w.append_data(frame_array[i])
         w.close()
 
-        open(os.path.join(directory, 'files.txt'), "a").write(f"file '{file_name}'\n")
+        open(os.path.join(directory, 'videos.txt'), "a").write(f"file '{file_name}'\n")
 
-    def save(self, dt, i_game):
-        directory = os.path.join('viz', dt)
+    def save(self):
+        directory = os.path.join('viz', self._dt, 'obj')
 
         # Check if directory for viz exists
         if not os.path.exists(directory):
             os.makedirs(directory)
-        f = open(os.path.join(directory, f'{dt}_game_{i_game}.viz'), 'wb')
+        f = open(os.path.join(directory, f'{self._dt}_game_{self._i_game}.viz'), 'wb')
         pickle.dump(self, f, 2)
         f.close()
 
@@ -629,9 +662,13 @@ class Helpers:
     #     end = """ type="video/mp4"></video>"""
     #     return HTML(before + path + end)
 
-# if __name__ == "__main__":
-#     dt = "2020-07-19-21-46-31"
-#     viz = Visualisation.load(f'{dt}.viz')
-#     path = os.path.join('img', f'{dt}.mp4')
-#     print(f'Generate video {path}...')
-#     viz.generate_mp4('all', dt, i_game, plot_input=True)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Visualize Environment')
+    parser.add_argument("-f", "--file_path", type=str,
+                        help="define path to .viz file")
+    args = parser.parse_args()
+
+    viz = Visualisation.load(args.file_path)
+    viz._color_hue_offset = 0.3
+    viz.generate_mp4('all', plot_input=True, plot_info=False)

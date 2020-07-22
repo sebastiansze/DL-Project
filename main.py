@@ -4,9 +4,7 @@ from tqdm import tqdm
 from datetime import datetime
 import matplotlib.pyplot as plt
 
-# import seaborn as sns
 import warnings
-
 warnings.filterwarnings("ignore", category=UserWarning)
 
 from Agent import Agent
@@ -22,8 +20,10 @@ def play():
 
 def train(n_games=20, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=2, resume=True,
           view_reduced=True, view_size=(2, 2, 2, 2)):
+    dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     print(f"------------------------------------------------------------------------------------------------")
     print(f"Starting training for {n_games} with {n_agents} agents...")
+    print(f"Time: {dt}")
     print(f"Settings:")
     print(f"Reduced view:\t{view_reduced}\nView size:\t{view_size}")
     print(f"------------------------------------------------------------------------------------------------")
@@ -138,30 +138,30 @@ def train(n_games=20, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=2, 
     # plt.plot(avg_score_saver)
     # plt.show()
 
+    visualisations = []
+    for i_game in range(n_games):
+        viz = Visualisation(saved_games[i_game], saved_env_size[i_game], n_agents,
+                            view_padding=view_size, view_reduced=view_reduced,
+                            truth_obstacles=saved_obstacles[i_game],
+                            dt=dt, i_game=i_game)
+        viz.save()
+        visualisations.append(viz)
+
     plot_game_i_list = np.arange(n_games - 1, 0, - int(n_games * 0.1))
     plot_game_i_list = np.concatenate([[0], plot_game_i_list, np.argsort(-1 * np.max(score_saver, axis=1))[:5]])
     plot_game_i_list = np.unique(plot_game_i_list)
     # plot_game_i_list = np.flip(plot_game_i_list)
     print('Visualize this games:{}'.format(plot_game_i_list))
-    dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    for i_game in plot_game_i_list:
-        viz = Visualisation(saved_games[i_game], saved_env_size[i_game], n_agents,
-                            view_padding=view_size, view_reduced=view_reduced,
-                            truth_obstacles=saved_obstacles[i_game])
-        # if viz.time_steps > 30:
-        print(f'Generate visual output for game {i_game} of session {dt}...')
-        # viz.plot_all(plot_input=True, save_as=os.path.join('img', f'{dt}_game_{i_game}.png'))
-        viz.generate_mp4('all', dt, i_game, plot_input=True)
-        # viz.save(dt, i_game)
 
-    # What was this supposed to do? Definitely does not work like this!
-    # helper = Helpers(env)
-    # randomgame = np.random.randint(1,20)
-    # print(randomgame)
-    #
-    # fig, ax = plt.subplots(figsize=(env_size[1]+3, env_size[0]))
-    # sns.heatmap(helper.show_reward(saved_games[-randomgame][0],elemMax=True).reshape(boardSize[0], boardSize[1]), annot=True, fmt="d")
-    # plt.show()
+    for i_game, viz in enumerate(visualisations):
+        if i_game in plot_game_i_list:
+            print(f'Generate visual output for game {i_game} of session {dt}...')
+            viz.plot_overview(time_step=-1, plot_info=False, save=True)
+            # try:
+            #     viz.generate_mp4('all', plot_input=True)
+            # except Exception as e:
+            #     print('Error while generating mp4')
+            #     print(e)
 
     print('Done')
 
