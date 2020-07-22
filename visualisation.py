@@ -1,5 +1,6 @@
 import os
 import pickle
+import warnings
 # from pathos import multiprocessing as mp
 import argparse
 import itertools
@@ -65,7 +66,7 @@ def fig_to_data(fig):
 
 class Visualisation:
     def __init__(self, input_maps, map_size, agent_count, view_padding, view_reduced=False,
-                 truth_obstacles=None, dt='', i_game=None):
+                 truth_obstacles=None, dt='', i_game=None, scores=None, reached=None):
         self._map_size_x = map_size[0]
         self._map_size_y = map_size[1]
         self._view_padding = view_padding
@@ -77,6 +78,8 @@ class Visualisation:
         self._next_step = False
         self._dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S') if dt == '' else dt
         self._i_game = i_game
+        self._scores = scores
+        self._reached = reached
 
         input_maps = np.array(input_maps)
         if not view_reduced:
@@ -90,7 +93,7 @@ class Visualisation:
             self._current_pos = (input_maps[:, :, -4:-2] * map_size).round().astype('int64')
             self._aim_pos = (input_maps[:, :, -2:] * map_size).round().astype('int64')
             if np.unique(self._current_pos, axis=0).shape[0] > 1:
-                print('Warning: Aim positions changed over time')
+                Warning('Warning: Aim positions changed over time')
 
             # Rebuild the full maps of the environment and start with a empty matrix
             # The size of a single map is padded to apply agents field of view also if a agent stands close to a corner
@@ -120,11 +123,14 @@ class Visualisation:
         # Obstacles
         self._obstacle_maps = (self._full_maps == 0.25)
         if not np.all(np.isin(np.count_nonzero(self._obstacle_maps, axis=(0, 1)), [0, self.time_steps * agent_count])):
-            print('Warning: Positions of obstacles changed over time or are different for different agents')
+            Warning('Warning: Positions of obstacles changed over time or are different for different agents')
         if isinstance(truth_obstacles, type(None)):
             self._obstacle_pos = np.argwhere(np.any(self._obstacle_maps, axis=(0, 1)))
         else:
-            self._obstacle_pos = np.unique(truth_obstacles, axis=0)
+            if len(truth_obstacles) > 0:
+                self._obstacle_pos = np.unique(truth_obstacles, axis=0)
+            else:
+                self._obstacle_pos = np.array([], dtype='int64')
 
         # Others Position
         self._others_maps = (self._full_maps == 0.5)
@@ -132,14 +138,14 @@ class Visualisation:
         # Aim Positions
         self._aim_maps = (self._full_maps == 0.75)
         if not np.all(np.isin(np.count_nonzero(self._aim_maps, axis=0), [0, self.time_steps])):
-            print('Warning: Aim maps changed over time')
+            Warning('Warning: Aim maps changed over time')
 
         # Current Positions
         self._current_maps = (self._full_maps == 1.0)
         if np.any(np.count_nonzero(self._current_maps, axis=(2, 3)) > 1):
-            print('Warning: At least one time step there are several positions for one or more agents')
+            Warning('Warning: At least one time step there are several positions for one or more agents')
         elif np.any(np.count_nonzero(self._current_maps, axis=(2, 3)) < 1):
-            print('Warning: At least at one time step for one or more agents the positions are missing')
+            Warning('Warning: At least at one time step for one or more agents the positions are missing')
 
         # Agent status includes 'aim achieved' (a), 'self inflicted accident' (s), 'third-party fault accident' (3)
         # and 'time out' (t)
@@ -362,7 +368,7 @@ class Visualisation:
             for x, y in start_pos:
                 self._plot_label(ax, x - 0.15, y + 0.2, "S", color)
             # else:
-            #     print('Warning: No start position')
+            #     Warning('Warning: No start position')
 
             # Plot aim position
             for x, y in aim_pos:
