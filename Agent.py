@@ -9,28 +9,26 @@ class Agent:
 
     def __init__(self, id_, gamma, epsilon, lr, n_actions, input_dims,
                  mem_size, batch_size, eps_min=0.01, eps_dec=5e-7,
-                 replace=1000, chkpt_dir='./models', viewReduced = False):
+                 replace=1000, chkpt_dir='./models', view_reduced=False):
         self.id = id_
         self.gamma = gamma
         self.epsilon = epsilon
-        self.lr = lr
-        self.n_actions = n_actions
-        self.input_dims = input_dims
         self.batch_size = batch_size
         self.eps_min = eps_min
         self.eps_dec = eps_dec
         self.replace_target_cnt = replace
         os.makedirs(chkpt_dir, exist_ok=True)
         self.chkpt_dir = chkpt_dir
-        self.action_space = [i for i in range(self.n_actions)]
+        self.action_space = [i for i in range(n_actions)]
         self.learn_step_counter = 0
-        self.viewReduced = viewReduced
 
         self.memory = ReplayBuffer(mem_size, input_dims)
 
-        self.q_eval = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims,viewReduced=self.viewReduced)
+        self.q_eval = DuelingLinearDeepQNetwork(lr, n_actions, input_dims=input_dims,
+                                                view_reduced=view_reduced)
 
-        self.q_next = DuelingLinearDeepQNetwork(self.lr, self.n_actions, input_dims=self.input_dims,viewReduced=self.viewReduced)
+        self.q_next = DuelingLinearDeepQNetwork(lr, n_actions, input_dims=input_dims,
+                                                view_reduced=view_reduced)
 
     def choose_action(self, observation):
         if np.random.random() > self.epsilon:

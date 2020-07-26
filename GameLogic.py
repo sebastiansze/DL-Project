@@ -24,7 +24,7 @@ class Point:
     def __str__(self):
         return f"[{self.x}, {self.y}]"
 
-    def distance_to(self, to):
+    def distance_to(self, to: 'Point'):
         return np.sqrt(np.square(self.x - to.x) + np.square(self.y - to.y))
 
     def to_numpy(self):
@@ -32,6 +32,10 @@ class Point:
 
 
 class Player:
+    """
+    A class representing a player on the board.
+    A player is defined by his start, current and end position
+    """
     def __init__(self, start: Point, aim: Point):
         self.start = start
         self.position = copy.deepcopy(start)
@@ -80,6 +84,7 @@ class Game:
 
     def add_player(self, start: Point = None, aim: Point = None, min_distance=None):
         """
+        Ass a player to the game.
         :param min_distance: minimum distance between start and aim
         :param start: a Point with the start coordinates, will be generated randomly if None
         :param aim: a Point with aim coordinates, will be generated randomly if None
@@ -89,6 +94,7 @@ class Game:
 
         if start is None:
             valid = False
+            # Ensure that start is not already occupied by another agent or obstacles
             while not valid:
                 start = Point(np.random.randint(0, self.board_size[0]), np.random.randint(0, self.board_size[1]))
                 valid = (start not in occupied_starts and
@@ -97,6 +103,7 @@ class Game:
 
         if aim is None:
             valid = False
+            # Ensure that aim is not already occupied by another agent or obstacles
             while not valid:
                 aim = Point(np.random.randint(0, self.board_size[0]),
                             np.random.randint(0, self.board_size[1]))
@@ -109,17 +116,6 @@ class Game:
 
         self.players.append(Player(start, aim))
 
-    @staticmethod
-    def random(board_size=(10, 10), player_count=1, max_reward=100, safe_dist=3):
-        num_obstacles = np.random.randint(15, 25)
-        obstacles = []
-        for i in range(num_obstacles):
-            obstacles.append(Point(np.random.randint(1, board_size[0]), np.random.randint(1, board_size[1])))
-        game = Game(obstacles, board_size=board_size, max_reward=max_reward, safe_dist=3)
-        for i_player in range(player_count):
-            game.add_player()
-        return game
-
     def reset(self):
         for player in self.players:
             player.reset()
@@ -131,7 +127,7 @@ class Game:
     def step(self, actions: List[int]) -> Tuple[List[np.ndarray], List[float], List[bool]]:
         """
         :param actions: Mapping from player_id to action for that player
-        :return: mapping from player_id to observation, reward, final
+        :return: Tuple of (observations, rewards, in_final_state)
         """
         if len(actions) != len(self.players):
             raise RuntimeError(f"Length of actions is not equal to number of players! Expected: {len(self.players)}"
@@ -183,7 +179,12 @@ class Game:
         return m
 
     def get_view_for_player(self, board, player: Player):
-        # board[pp[0], pp[1]] = 1
+        """
+        Generates an individual reduced view for a player as set in the env parameter "view_size"
+        :param board: The complete board as seen by the player
+        :param player: The player to generate the view for
+        :return:
+        """
         out = np.zeros((1 + self.view_size[0] + self.view_size[1], 1 + self.view_size[2] + self.view_size[3]))
         x_min = player.position.x - self.view_size[0]
         x_max = player.position.x + self.view_size[1]
@@ -214,12 +215,15 @@ class Game:
             y_max_offset = out.shape[1] + board.shape[1] - y_max - 1
         else:
             y_max_offset = out.shape[1]
-        # print("PlayerPos = " + str(self.playerPos[0]) + "," + str(self.playerPos[1]))
         out[x_min_offset:x_max_offset, y_min_offset:y_max_offset] = board[x_min_out:x_max + 1, y_min_out:y_max + 1]
-        # print(out)
         return out
 
     def check_bounds(self, p: Point):
+        """
+        Checks if a Point is is outside of the game env
+        :param p: The point to be checked
+        :return: Tuple of (penalty, is_on_board)
+        """
         if p.x < 0:
             return -10000, True
         elif p.y < 0:
@@ -231,11 +235,17 @@ class Game:
         else:
             return 0, False
 
-    def get_reward_for_player_id(self, player_id: any):
+    def get_reward_for_player_id(self, player_id: int):
+        """
+        Calculates the reward for a player id and also checks for collisions and resets the player
+        to the previous position in case of thereof. Also checks if the player is now in a final state
+        :param player_id: The player id to calculate the reward for
+        :return: Tuple of (reward, in_final_state)
+        """
         player = self.players[player_id]
         if player.collided:
             return 0, True
-        reward, done = self.check_bounds(player.position)
+        reward, in_final_state = self.check_bounds(player.position)
         reward -= 300 * player.position.distance_to(player.aim) / (self.board_size[1] + self.board_size[0])
 
         # reduce reward if we get close to / collide with an obstacle and aims of other agents
@@ -244,7 +254,7 @@ class Game:
         for ob in obs:
             reward -= 1000 * np.exp(-(player.position.distance_to(ob) * self.safe_dist))
             if ob == player.position:
-                done = True
+                in_final_state = True
 
         # reduce reward if we get close to / collide with another player
         for player_b_id, player_b in enumerate(self.players):
@@ -252,7 +262,7 @@ class Game:
                 reward -= 1000 * np.exp(-(player.position.distance_to(player_b.position) * self.safe_dist))
                 # If players ended up on same field or crashed during move terminate them
                 if player.position == player_b.position or player.did_collide_with(player_b):
-                    done = True
+                    in_final_state = True
 
         # Penalize being close to the board borders
         edge_control = 600
@@ -261,12 +271,12 @@ class Game:
         if player.position.y == 0 or player.position.y == self.board_size[1] - 1:
             reward -= edge_control
 
-        # If done == True at this point, player collided (either with obstacle, player or boundary)
+        # If in_final_state == True at this point, player collided (either with obstacle, player or boundary)
         # Register collision in player and reset to previous position
-        if done:
+        if in_final_state:
             player.register_collision()
 
         if player.position == player.aim:
             reward = self.MAX_REWARD
-            done = True
-        return reward, done
+            in_final_state = True
+        return reward, in_final_state

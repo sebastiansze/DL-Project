@@ -6,7 +6,7 @@ import torch as T
 
 
 class DuelingLinearDeepQNetwork(nn.Module):
-    def __init__(self, alpha, n_actions, input_dims,viewReduced=False):
+    def __init__(self, alpha, n_actions, input_dims, view_reduced=False):
         super(DuelingLinearDeepQNetwork, self).__init__()
 
         self.fc1 = nn.Linear(*input_dims, 256)
@@ -23,10 +23,10 @@ class DuelingLinearDeepQNetwork(nn.Module):
         self.loss = nn.MSELoss()
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
-        self.viewReduced = viewReduced
+        self.view_reduced = view_reduced
 
     def forward(self, state):
-        if self.viewReduced:
+        if self.view_reduced:
             l1 = F.relu(self.fc1(state))
             l2 = F.relu(self.fc2(l1))
             l3 = F.relu(self.fc3(l2))

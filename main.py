@@ -11,15 +11,9 @@ from Agent import Agent
 from GameLogic import Game, Point
 from visualisation import Visualisation
 
-MAX_REWARD = 200000
 
-
-def play():
-    pass
-
-
-def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=10, resume=True,
-          view_reduced=True, view_size=(2, 2, 2, 2)):
+def train(n_games=200, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=10, resume=True,
+          view_reduced=True, view_size=(2, 2, 2, 2), max_reward=200000):
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     print(f"------------------------------------------------------------------------------------------------")
     print(f"Starting training for {n_games} with {n_agents} agents...")
@@ -43,6 +37,7 @@ def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=1
         input_size = env_size_max[0] * env_size_max[1]
     agents = []
 
+    # Create the agents
     for agent_id in range(n_agents):
         agent = Agent(f"agent_{agent_id}", gamma=0.99, epsilon=1.0, lr=1 * 5e-3, n_actions=4,
                       input_dims=[input_size], mem_size=100000, batch_size=64,
@@ -63,20 +58,20 @@ def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=1
         # Define a time limit based on the perimeter of the environment
         timeout = np.sum(env_size * 2)
 
-        # Create obstacles randomly
+        # Create obstacles randomly 6 - 15 % of the env size
         num_obs = int(np.max([np.round(np.random.uniform(0.06, 0.15) * np.multiply(*env_size)) - 2 * n_agents, 0]))
         obstacles = []
         for i in range(num_obs):
             obstacles.append(Point(np.random.randint(1, env_size[0]), np.random.randint(1, env_size[1])))
 
-        env = Game(obstacles, None, env_size, MAX_REWARD, view_reduced=view_reduced, view_size=view_size)
+        env = Game(obstacles, None, env_size, max_reward, view_reduced=view_reduced, view_size=view_size)
         for i in range(n_agents):
             env.add_player()
 
         observations = env.reset()
         game_sav = [observations]
         time_step = 0
-        # Run until all agents reached a final state
+        # Play the game: Run until all agents reached a final state
         while not np.all(agent_in_final_state):
             time_step += 1
             # Obtain actions for each agent
@@ -97,9 +92,11 @@ def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=1
                     agent.store_transition(observation, action, reward, next_observation, int(is_in_final_state))
                     agent.learn()
 
+            # For statistics count agents that reached their aim with the action in this iteration
             for agent_id, action in enumerate(actions):
-                if action is not None and rewards[agent_id] == MAX_REWARD:
+                if action is not None and rewards[agent_id] == max_reward:
                     reached[agent_id] += 1
+                    # Special statistic counter for the last 100 games
                     if i_game > (n_games - 100):
                         reached_last_100[agent_id] += 1
 
@@ -109,9 +106,11 @@ def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=1
             eps_history.append([agent.epsilon for agent in agents])
             ddqn_scores.append(scores)
 
+            # if we reach a timeout for the game just set all agents to being in a final state
             if time_step == timeout:
                 agent_in_final_state = np.full(n_agents, True)
 
+            # Save a checkpoint every 10 games
             if i_game > 0 and i_game % 10 == 0:
                 for agent in agents:
                     agent.save_models()
@@ -126,6 +125,7 @@ def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=1
                 print(f"episode: {i_game} score: {np.round(scores.tolist(),3)}, average score {avg_scores.tolist()} "
                       f"epsilon {epsilons} Erreicht: {reached.tolist()}")
 
+        # Save game for visualization purposes
         viz = Visualisation(game_sav, env_size, n_agents,
                             view_padding=view_size, view_reduced=view_reduced,
                             truth_obstacles=np.array([o.to_numpy() for o in obstacles]),
@@ -133,6 +133,7 @@ def train(n_games=5000, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=1
         viz.save()
         visualisations.append(viz)
 
+    # Visualize 10% of the played games
     print(f"\n{n_games} Spieldurchläufe: {reached.tolist()} mal Ziel erreicht - Qoute: {(reached / n_games).tolist()}")
     print("Quote der letzten 100 Durchläufe " + str((reached_last_100 / 100).tolist()))
 
