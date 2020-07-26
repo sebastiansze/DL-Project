@@ -60,7 +60,7 @@ class Agent:
         self.q_next.load_checkpoint(os.path.join(self.chkpt_dir, f"{self.id}_dqn_model_next"))
 
     def learn(self):
-        if self.memory.mem_cntr < self.batch_size:
+        if self.memory.mem_counter < self.batch_size:
             return
 
         self.q_eval.optimizer.zero_grad()
@@ -82,10 +82,8 @@ class Agent:
 
         V_s_eval, A_s_eval = self.q_eval.forward(states_)
 
-        q_pred = T.add(V_s,
-                       (A_s - A_s.mean(dim=1, keepdim=True)))[indices, actions]
-        q_next = T.add(V_s_,
-                       (A_s_ - A_s_.mean(dim=1, keepdim=True)))
+        q_pred = T.add(V_s, (A_s - A_s.mean(dim=1, keepdim=True)))[indices, actions]
+        q_next = T.add(V_s_,(A_s_ - A_s_.mean(dim=1, keepdim=True)))
 
         q_eval = T.add(V_s_eval, (A_s_eval - A_s_eval.mean(dim=1, keepdim=True)))
 

@@ -12,17 +12,19 @@ class DuelingLinearDeepQNetwork(nn.Module):
         self.fc1 = nn.Linear(*input_dims, 256)
         self.fc2 = nn.Linear(256, 512)
         self.fc3 = nn.Linear(512, 256)
-
+        # Sub networks State and Actions
         self.preV = nn.Linear(260, 128)
         self.V = nn.Linear(128, 1)
-
+        # Sub networks State and Actions
         self.preA = nn.Linear(260, 128)
         self.A = nn.Linear(128, n_actions)
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
+
         self.loss = nn.MSELoss()
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
+
         self.view_reduced = view_reduced
 
     def forward(self, state):
@@ -48,9 +50,7 @@ class DuelingLinearDeepQNetwork(nn.Module):
         return V, A
 
     def save_checkpoint(self, file):
-        # print('... saving checkpoint ...')
         T.save(self.state_dict(), file)
 
     def load_checkpoint(self, file):
-        # print('... loading checkpoint ...')
         self.load_state_dict(T.load(file))
