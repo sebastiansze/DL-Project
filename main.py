@@ -1,4 +1,3 @@
-import os
 import numpy as np
 from tqdm import tqdm
 from datetime import datetime
@@ -12,8 +11,8 @@ from GameLogic import Game, Point
 from visualisation import Visualisation
 
 
-def train(n_games=200, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=10, resume=True,
-          view_reduced=True, view_size=(2, 2, 2, 2), max_reward=200000):
+def train(n_games=1500, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=10, resume=True,
+          view_reduced=True, view_size=(2, 2, 2, 2), max_reward=200000, save_viz=False):
     dt = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     print(f"------------------------------------------------------------------------------------------------")
     print(f"Starting training for {n_games} with {n_agents} agents...")
@@ -130,35 +129,35 @@ def train(n_games=200, env_size_min=(10, 10), env_size_max=(30, 30), n_agents=10
                             view_padding=view_size, view_reduced=view_reduced,
                             truth_obstacles=np.array([o.to_numpy() for o in obstacles]),
                             dt=dt, i_game=i_game, scores=scores, reached=reached)
-        viz.save()
+        if save_viz:
+            viz.save()
         visualisations.append(viz)
 
-    # Visualize 10% of the played games
-    print(f"\n{n_games} Spieldurchläufe: {reached.tolist()} mal Ziel erreicht - Qoute: {(reached / n_games).tolist()}")
-    print("Quote der letzten 100 Durchläufe " + str((reached_last_100 / 100).tolist()))
+    print(f"\n{n_games} runs - {reached.tolist()} times aim reached - quota: {(reached / n_games).tolist()}")
+    print("Quota of the last 100 runs " + str((reached_last_100 / 100).tolist()))
 
-    plot_game_i_list = np.arange(n_games - 1, 0, - int(n_games * 0.1))
+    # Visualize 10 played games in equal distances between first and last run and in addition the best five games
+    plot_game_i_list = np.arange(n_games - 1, 0, -int(max(n_games * 0.1, 1)))
     plot_game_i_list = np.concatenate([[0], plot_game_i_list, np.argsort(-1 * np.max(score_saver, axis=1))[:5]])
     plot_game_i_list = np.unique(plot_game_i_list)
     plot_game_i_list = np.flip(plot_game_i_list)
-    print('Visualize this games:{}'.format(plot_game_i_list))
+    print()
+    print('Visualize these games: {}'.format(plot_game_i_list))
 
-    for i_game, viz in enumerate(visualisations):
-        if i_game in plot_game_i_list:
-            print(f'Generate visual output for game {i_game} of session {dt}...')
-            viz.plot_overview(time_step=-1, plot_info=False, save=True)
-            # try:
-            #     viz.generate_mp4('all', plot_input=True)
-            # except Exception as e:
-            #     print('Error while generating mp4')
-            #     print(e)
-
+    for i_game in plot_game_i_list:
+        print(f'Generate visual output for game {i_game}...', end='\r')
+        visualisations[i_game].plot_overview(time_step=-1, plot_info=False, save=True)
 
     plt.plot(score_saver)
     plt.show()
     plt.plot(avg_score_saver)
     plt.show()
-    print('Done')
+
+    print()
+    print()
+    print('Done.')
+    print('IMPORTANT: A crash of Python at the end of the code is a known issue.')
+    print('It comes from closing a lot of matplotlib figures in a short time (see visualisation.py, line 611 and 655).')
 
 
 if __name__ == '__main__':
