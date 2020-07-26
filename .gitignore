@@ -12,6 +12,7 @@
 
 # Python (for lint)
 *.pyc
+__pycache__
 
 # Temporary files
 *~
@@ -21,3 +22,4 @@
 
 ## Images
 img/
+viz/
